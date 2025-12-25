@@ -32,6 +32,14 @@ Este proyecto permite a las organizaciones:
 - **Filtros por responsable**: Buscar productos y métricas por responsable
 - **Permisos granulares**: Control de acceso basado en roles y ownership
 
+### Catálogo de Métricas y Validaciones
+- **Métricas predefinidas**: NPS, CSAT, Tasa de Conversión, CAC, Churn Rate, y más
+- **Validaciones automáticas**: Rangos permitidos (ej: NPS de -100 a +100, CSAT de 0 a 100)
+- **Ayuda contextual**: Tooltips con descripción, fórmula y ejemplos al seleccionar métrica
+- **Benchmarks por industria**: Referencias para interpretar valores
+- **Interpretación de valores**: Sistema que indica si el valor es excelente, bueno, o necesita mejora
+- **Sistema extensible**: Fácil agregar nuevas métricas con sus propias reglas
+
 ## Documentación Completa
 
 Este repositorio contiene documentación exhaustiva de arquitectura y plan de implementación:
@@ -106,7 +114,17 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
    - Auditoría de acciones
    - Mejores prácticas de seguridad
 
-8. **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)**
+8. **[METRICAS_CATALOGO.md](./METRICAS_CATALOGO.md)** ⭐ NUEVO
+   - Catálogo completo de métricas predefinidas
+   - Validaciones por tipo de métrica (rangos, decimales)
+   - Ayuda contextual para cada métrica (descripción, fórmula, ejemplos)
+   - Benchmarks por industria
+   - Interpretación de valores (excelente, bueno, mejorar)
+   - Guía para agregar nuevas métricas
+   - Sistema de tooltips y validación en tiempo real
+   - Tabla de catálogo en base de datos
+
+9. **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)**
    - Plan de implementación detallado
    - 10 fases con tareas específicas
    - Cronograma estimado (45 días)

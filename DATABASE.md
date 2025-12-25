@@ -305,7 +305,168 @@ INSERT INTO tipos_metrica (codigo, nombre, descripcion, color_hex, icono, orden)
 ('producto', 'Producto', 'Métricas de uso y adopción del producto', '#3B82F6', 'chart-bar', 3);
 ```
 
-### 3.6 Tabla: metricas
+### 3.6 Tabla: catalogo_metricas (Opcional - Catálogo de Métricas Predefinidas)
+
+Catálogo de métricas predefinidas con validaciones, ayuda contextual y benchmarks.
+Esta tabla es opcional pero altamente recomendada para mantener consistencia y proveer ayuda a los usuarios.
+
+```sql
+CREATE TABLE catalogo_metricas (
+    id SERIAL PRIMARY KEY,
+    codigo VARCHAR(100) UNIQUE NOT NULL,
+    nombre VARCHAR(200) NOT NULL,
+    tipo_metrica_id INTEGER REFERENCES tipos_metrica(id),
+    unidad_medida VARCHAR(50) NOT NULL,
+
+    -- Validaciones y reglas
+    validacion JSONB DEFAULT '{}',
+
+    -- Información de ayuda
+    descripcion TEXT,
+    formula TEXT,
+    ejemplo_valor DECIMAL(15, 4),
+    ejemplo_formato VARCHAR(100),
+    ayuda_contextual TEXT,
+
+    -- Benchmarks e interpretación
+    benchmarks JSONB DEFAULT '{}',
+    interpretacion JSONB DEFAULT '{}',
+
+    -- Mejores prácticas
+    mejores_practicas TEXT[],
+
+    -- Metadata
+    activo BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT catalogo_metricas_codigo_lowercase CHECK (codigo = LOWER(codigo))
+);
+
+-- Índices
+CREATE INDEX idx_catalogo_metricas_tipo ON catalogo_metricas(tipo_metrica_id);
+CREATE INDEX idx_catalogo_metricas_codigo ON catalogo_metricas(codigo);
+CREATE INDEX idx_catalogo_metricas_activo ON catalogo_metricas(activo);
+
+-- Trigger para updated_at
+CREATE TRIGGER update_catalogo_metricas_updated_at
+    BEFORE UPDATE ON catalogo_metricas
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Datos iniciales de ejemplo
+INSERT INTO catalogo_metricas (
+    codigo, nombre, tipo_metrica_id, unidad_medida,
+    validacion, descripcion, formula, ejemplo_valor, ejemplo_formato,
+    ayuda_contextual, benchmarks, interpretacion
+) VALUES
+-- NPS
+(
+    'nps',
+    'NPS (Net Promoter Score)',
+    (SELECT id FROM tipos_metrica WHERE codigo = 'experiencia'),
+    'score_nps',
+    '{"valor_minimo": -100, "valor_maximo": 100, "decimales": 0}'::jsonb,
+    'Mide la lealtad del cliente y probabilidad de recomendación',
+    '% Promotores (9-10) - % Detractores (0-6)',
+    42,
+    '42',
+    'NPS va de -100 a +100. Scores sobre 50 son excelentes. Se calcula restando el % de detractores del % de promotores.',
+    '{"tecnologia": "40-60", "retail": "30-50", "banca": "20-40"}'::jsonb,
+    '{"excelente": "> 70", "bueno": "50-70", "aceptable": "30-50", "mejorar": "0-30", "critico": "< 0"}'::jsonb
+),
+-- CSAT
+(
+    'csat',
+    'CSAT (Customer Satisfaction Score)',
+    (SELECT id FROM tipos_metrica WHERE codigo = 'experiencia'),
+    'score_csat',
+    '{"valor_minimo": 0, "valor_maximo": 100, "decimales": 1}'::jsonb,
+    'Mide la satisfacción del cliente con un producto, servicio o interacción específica',
+    '(Respuestas Satisfechas / Total Respuestas) × 100',
+    85.5,
+    '85.5',
+    'CSAT mide satisfacción inmediata. Un score de 85% significa que 85 de cada 100 clientes están satisfechos.',
+    '{"promedio": "75-85"}'::jsonb,
+    '{"excelente": "> 85", "bueno": "75-85", "aceptable": "65-75", "mejorar": "< 65"}'::jsonb
+),
+-- Tasa de Conversión
+(
+    'tasa_conversion',
+    'Tasa de Conversión',
+    (SELECT id FROM tipos_metrica WHERE codigo = 'negocio'),
+    'porcentaje',
+    '{"valor_minimo": 0, "valor_maximo": 100, "decimales": 2}'::jsonb,
+    'Porcentaje de usuarios que completan una acción deseada (compra, registro, etc.)',
+    '(Conversiones / Visitantes) × 100',
+    3.5,
+    '3.50%',
+    'La tasa de conversión mide qué tan efectivo es tu embudo. Un valor de 3.5% significa que de cada 100 visitantes, 3.5 completan la acción deseada.',
+    '{"ecommerce": "2-3%", "saas": "3-5%", "b2b": "2-3%"}'::jsonb,
+    '{"excelente": "> 5%", "bueno": "3-5%", "aceptable": "2-3%", "mejorar": "< 2%"}'::jsonb
+),
+-- CAC
+(
+    'cac',
+    'CAC (Customer Acquisition Cost)',
+    (SELECT id FROM tipos_metrica WHERE codigo = 'negocio'),
+    'dinero',
+    '{"valor_minimo": 0, "valor_maximo": null, "decimales": 2}'::jsonb,
+    'Costo promedio para adquirir un nuevo cliente',
+    'Gastos de Marketing y Ventas / Número de Nuevos Clientes',
+    45.50,
+    '$45.50',
+    'El CAC es crítico para determinar la rentabilidad. Idealmente, el LTV (valor de vida del cliente) debe ser al menos 3 veces el CAC.',
+    '{"ecommerce": "$10-$50", "saas": "$100-$400", "b2b": "$200-$500"}'::jsonb,
+    '{}'::jsonb
+),
+-- Churn Rate
+(
+    'churn_rate',
+    'Churn Rate (Tasa de Cancelación)',
+    (SELECT id FROM tipos_metrica WHERE codigo = 'negocio'),
+    'porcentaje',
+    '{"valor_minimo": 0, "valor_maximo": 100, "decimales": 2, "alerta_sobre": 5}'::jsonb,
+    'Porcentaje de clientes que cancelan su suscripción en un periodo',
+    '(Clientes que Cancelaron / Total Clientes al Inicio) × 100',
+    3.2,
+    '3.20%',
+    'El churn es una de las métricas más críticas. Un churn del 5% mensual significa que pierdes el 60% de tus clientes al año. Meta ideal: < 3%.',
+    '{"saas_b2c": "5-7%", "saas_b2b": "3-5%"}'::jsonb,
+    '{"excelente": "< 3%", "bueno": "3-5%", "aceptable": "5-7%", "critico": "> 7%"}'::jsonb
+);
+```
+
+**Campos validacion** (JSONB):
+```json
+{
+  "valor_minimo": number | null,
+  "valor_maximo": number | null,
+  "decimales": number,
+  "alerta_sobre": number,
+  "alerta_bajo": number
+}
+```
+
+**Campos benchmarks** (JSONB):
+```json
+{
+  "industria1": "rango",
+  "industria2": "rango"
+}
+```
+
+**Campos interpretacion** (JSONB):
+```json
+{
+  "excelente": "rango",
+  "bueno": "rango",
+  "aceptable": "rango",
+  "mejorar": "rango"
+}
+```
+
+### 3.7 Tabla: metricas
 
 Define las métricas específicas de cada flujo.
 
