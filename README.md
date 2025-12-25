@@ -19,6 +19,7 @@ Este proyecto permite a las organizaciones:
 - Gráficos de tendencias mensuales
 - Seguimiento de cumplimiento de targets
 - Comparación mes a mes
+- **Exportación a Excel**: Diseñadores pueden descargar sus productos o flujos en .xlsx
 - Exportación JSON y CSV para BI (Looker, Power BI, Tableau)
 - API REST completa
 - Interfaz responsive (mobile, tablet, desktop)
@@ -219,6 +220,7 @@ Mis Productos → Vista Producto Completo → Vista Flujo Detallado
 - **CRUD completo**: Crear/Editar/Eliminar flujos y métricas de sus productos
 - **Agrega métricas mediante formularios** (registro mensual)
 - **CRUD completo de valores mensuales** que ingresó
+- **Exporta a Excel**: Descarga producto completo o flujo específico en .xlsx
 - Ve vista completa de producto y vista detallada de flujos
 - Puede ver otros productos en modo lectura
 - NO puede crear productos (solo Admin)
@@ -248,7 +250,8 @@ Mis Productos → Vista Producto Completo → Vista Flujo Detallado
     - Ingresa valor del mes (ej: 78.5%)
     - Sistema valida rango automáticamente
 11. María puede editar/eliminar valores que ingresó (CRUD completo)
-12. Dashboard se actualiza automáticamente
+12. María puede exportar su producto o flujo a Excel (.xlsx)
+13. Dashboard se actualiza automáticamente
 
 María NO puede:
    - Crear nuevos productos (solo Admin)

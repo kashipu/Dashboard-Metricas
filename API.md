@@ -795,7 +795,77 @@ Content-Type: text/csv
 Content-Disposition: attachment; filename="ecommerce-web-metrics.csv"
 ```
 
-### 7.3 Exportar Todos los Productos
+### 7.3 Exportar Producto a Excel
+
+```http
+GET /api/export/:product_code/excel
+```
+
+**Descripción**: Exporta el producto completo con todos sus flujos y métricas en formato Excel (.xlsx).
+
+**Query Parameters**:
+- `start_date` (string, opcional): Fecha inicial (YYYY-MM-DD)
+- `end_date` (string, opcional): Fecha final (YYYY-MM-DD)
+
+**Ejemplo**:
+```http
+GET /api/export/credito-vehiculo/excel?start_date=2025-01-01&end_date=2025-12-31
+```
+
+**Headers**:
+```http
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename="credito-vehiculo-metrics.xlsx"
+```
+
+**Estructura del archivo Excel**:
+- **Hoja 1 "Resumen"**: Información general del producto
+- **Hoja 2 "Colocación"**: Todas las métricas del flujo Colocación
+- **Hoja 3 "Legalización"**: Todas las métricas del flujo Legalización
+- **Cada hoja contiene**:
+  - Columnas: Métrica | Tipo | Unidad | Ene-25 | Feb-25 | Mar-25 | ...
+  - Gráficos de tendencias por métrica
+  - Resumen de cumplimiento
+
+**Permisos**:
+- **Admin**: Puede exportar cualquier producto
+- **Diseñador**: Puede exportar **solo sus productos asignados**
+- **Viewer**: Puede exportar cualquier producto (solo lectura)
+
+### 7.4 Exportar Flujo Específico a Excel
+
+```http
+GET /api/export/:product_code/flujo/:flujo_id/excel
+```
+
+**Descripción**: Exporta un flujo específico con todas sus métricas en Excel (.xlsx).
+
+**Query Parameters**:
+- `start_date` (string, opcional): Fecha inicial (YYYY-MM-DD)
+- `end_date` (string, opcional): Fecha final (YYYY-MM-DD)
+
+**Ejemplo**:
+```http
+GET /api/export/credito-vehiculo/flujo/1/excel?start_date=2025-01-01&end_date=2025-12-31
+```
+
+**Headers**:
+```http
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Content-Disposition: attachment; filename="credito-vehiculo-colocacion-metrics.xlsx"
+```
+
+**Estructura del archivo Excel**:
+- **Hoja 1 "Métricas"**: Todas las métricas del flujo con valores mensuales
+- **Hoja 2 "Gráficos"**: Visualizaciones de tendencias
+- **Hoja 3 "Análisis"**: Comparaciones mes a mes, promedios, máximos, mínimos
+
+**Permisos**:
+- **Admin**: Puede exportar cualquier flujo
+- **Diseñador**: Puede exportar **solo flujos de sus productos asignados**
+- **Viewer**: Puede exportar cualquier flujo
+
+### 7.5 Exportar Todos los Productos
 
 ```http
 GET /api/export/all/json

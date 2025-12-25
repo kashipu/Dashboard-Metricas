@@ -717,6 +717,303 @@ export class CsvExportService {
 }
 ```
 
+### 6.3 Servicio de Exportación a Excel
+
+```typescript
+// src/modules/export/services/excel-export.service.ts
+import ExcelJS from 'exceljs';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export class ExcelExportService {
+  /**
+   * Exporta producto completo con todos sus flujos a Excel
+   */
+  async exportProductToExcel(
+    productCode: string,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<ExcelJS.Buffer> {
+    const producto = await prisma.producto.findUnique({
+      where: { codigo: productCode },
+      include: {
+        flujos: {
+          where: { activo: true },
+          include: {
+            metricas: {
+              where: { activo: true },
+              include: {
+                valores_mensuales: {
+                  where: {
+                    ...(startDate && { periodo: { gte: startDate } }),
+                    ...(endDate && { periodo: { lte: endDate } }),
+                  },
+                  orderBy: { periodo: 'asc' },
+                },
+                tipo_metrica: true,
+              },
+            },
+          },
+          orderBy: { orden: 'asc' },
+        },
+      },
+    });
+
+    if (!producto) {
+      throw new Error('Producto no encontrado');
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Dashboard Métricas';
+    workbook.created = new Date();
+
+    // Hoja 1: Resumen
+    const resumenSheet = workbook.addWorksheet('Resumen');
+    resumenSheet.columns = [
+      { header: 'Campo', key: 'campo', width: 25 },
+      { header: 'Valor', key: 'valor', width: 50 },
+    ];
+
+    resumenSheet.addRows([
+      { campo: 'Producto', valor: producto.nombre },
+      { campo: 'Código', valor: producto.codigo },
+      { campo: 'Total de Flujos', valor: producto.flujos.length },
+      {
+        campo: 'Total de Métricas',
+        valor: producto.flujos.reduce((sum, f) => sum + f.metricas.length, 0)
+      },
+      { campo: 'Exportado en', valor: new Date().toLocaleString('es-ES') },
+    ]);
+
+    // Estilo header
+    resumenSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    resumenSheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4472C4' },
+    };
+
+    // Hoja por cada flujo
+    producto.flujos.forEach((flujo) => {
+      const sheet = workbook.addWorksheet(flujo.nombre);
+
+      // Obtener todos los períodos únicos
+      const periodos = new Set<string>();
+      flujo.metricas.forEach((metrica) => {
+        metrica.valores_mensuales.forEach((valor) => {
+          periodos.add(valor.periodo.toISOString().substring(0, 7)); // YYYY-MM
+        });
+      });
+
+      const periodosOrdenados = Array.from(periodos).sort();
+
+      // Crear columnas dinámicamente
+      const columns = [
+        { header: 'Métrica', key: 'metrica', width: 30 },
+        { header: 'Tipo', key: 'tipo', width: 15 },
+        { header: 'Unidad', key: 'unidad', width: 15 },
+        ...periodosOrdenados.map((periodo) => ({
+          header: periodo,
+          key: periodo,
+          width: 12,
+        })),
+      ];
+
+      sheet.columns = columns;
+
+      // Agregar datos de métricas
+      flujo.metricas.forEach((metrica) => {
+        const row: any = {
+          metrica: metrica.nombre,
+          tipo: metrica.tipo_metrica.nombre,
+          unidad: metrica.unidad_medida,
+        };
+
+        // Agregar valores por período
+        metrica.valores_mensuales.forEach((valor) => {
+          const periodoKey = valor.periodo.toISOString().substring(0, 7);
+          row[periodoKey] = valor.valor;
+        });
+
+        sheet.addRow(row);
+      });
+
+      // Estilo del header
+      sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      sheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF4472C4' },
+      };
+
+      // Formato de números
+      sheet.eachRow((row, rowNumber) => {
+        if (rowNumber > 1) {
+          row.eachCell((cell, colNumber) => {
+            if (colNumber > 3 && typeof cell.value === 'number') {
+              cell.numFmt = '#,##0.00';
+            }
+          });
+        }
+      });
+    });
+
+    return await workbook.xlsx.writeBuffer();
+  }
+
+  /**
+   * Exporta un flujo específico a Excel
+   */
+  async exportFlujoToExcel(
+    productCode: string,
+    flujoId: number,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<ExcelJS.Buffer> {
+    const flujo = await prisma.flujo.findFirst({
+      where: {
+        id: flujoId,
+        producto: { codigo: productCode },
+        activo: true,
+      },
+      include: {
+        producto: true,
+        metricas: {
+          where: { activo: true },
+          include: {
+            valores_mensuales: {
+              where: {
+                ...(startDate && { periodo: { gte: startDate } }),
+                ...(endDate && { periodo: { lte: endDate } }),
+              },
+              orderBy: { periodo: 'asc' },
+            },
+            tipo_metrica: true,
+          },
+          orderBy: { orden: 'asc' },
+        },
+      },
+    });
+
+    if (!flujo) {
+      throw new Error('Flujo no encontrado');
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Dashboard Métricas';
+    workbook.created = new Date();
+
+    // Hoja 1: Métricas con valores mensuales
+    const metricasSheet = workbook.addWorksheet('Métricas');
+
+    const periodos = new Set<string>();
+    flujo.metricas.forEach((metrica) => {
+      metrica.valores_mensuales.forEach((valor) => {
+        periodos.add(valor.periodo.toISOString().substring(0, 7));
+      });
+    });
+
+    const periodosOrdenados = Array.from(periodos).sort();
+
+    metricasSheet.columns = [
+      { header: 'Métrica', key: 'metrica', width: 30 },
+      { header: 'Tipo', key: 'tipo', width: 15 },
+      { header: 'Unidad', key: 'unidad', width: 15 },
+      ...periodosOrdenados.map((periodo) => ({
+        header: periodo,
+        key: periodo,
+        width: 12,
+      })),
+    ];
+
+    flujo.metricas.forEach((metrica) => {
+      const row: any = {
+        metrica: metrica.nombre,
+        tipo: metrica.tipo_metrica.nombre,
+        unidad: metrica.unidad_medida,
+      };
+
+      metrica.valores_mensuales.forEach((valor) => {
+        const periodoKey = valor.periodo.toISOString().substring(0, 7);
+        row[periodoKey] = valor.valor;
+      });
+
+      metricasSheet.addRow(row);
+    });
+
+    // Estilo del header
+    metricasSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    metricasSheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4472C4' },
+    };
+
+    return await workbook.xlsx.writeBuffer();
+  }
+}
+```
+
+**Dependencias necesarias**:
+```bash
+npm install exceljs
+npm install --save-dev @types/exceljs
+```
+
+**Ejemplo de controlador**:
+```typescript
+// src/modules/export/controllers/export.controller.ts
+export class ExportController {
+  private excelService = new ExcelExportService();
+
+  exportProductToExcel = async (req: Request, res: Response) => {
+    const { product_code } = req.params;
+    const { start_date, end_date } = req.query;
+
+    const buffer = await this.excelService.exportProductToExcel(
+      product_code,
+      start_date ? new Date(start_date as string) : undefined,
+      end_date ? new Date(end_date as string) : undefined
+    );
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${product_code}-metrics.xlsx"`
+    );
+
+    res.send(buffer);
+  };
+
+  exportFlujoToExcel = async (req: Request, res: Response) => {
+    const { product_code, flujo_id } = req.params;
+    const { start_date, end_date } = req.query;
+
+    const buffer = await this.excelService.exportFlujoToExcel(
+      product_code,
+      Number(flujo_id),
+      start_date ? new Date(start_date as string) : undefined,
+      end_date ? new Date(end_date as string) : undefined
+    );
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${product_code}-flujo-${flujo_id}.xlsx"`
+    );
+
+    res.send(buffer);
+  };
+}
+```
+
 ## 7. Configuración de la Aplicación
 
 ### 7.1 App.ts
