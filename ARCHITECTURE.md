@@ -82,11 +82,25 @@ Sistema centralizado para consolidar y visualizar métricas de múltiples produc
 - **Cache (opcional)**: Redis
 - **Migraciones**: Prisma Migrate o TypeORM migrations
 
-#### DevOps
-- **Containerización**: Docker
-- **Orquestación**: Docker Compose (desarrollo)
-- **CI/CD**: GitHub Actions
-- **Hosting**: Vercel (frontend), Railway/Render (backend)
+#### DevOps y Deployment
+- **VPS**: Servidor privado con Dokploy instalado
+- **Gestión de Infraestructura**: Dokploy (gestiona Docker, bases de datos, deployments)
+- **Containerización**: Docker (gestionado por Dokploy)
+- **Base de datos**: PostgreSQL 15+ (provisto por Dokploy)
+- **Cache**: Redis (opcional, provisto por Dokploy)
+- **CI/CD**: GitHub Actions → Dokploy webhooks
+- **Proxy reverso**: Traefik (incluido en Dokploy)
+- **SSL**: Let's Encrypt automático (gestionado por Dokploy)
+- **Monitoreo**: Dokploy dashboard + logs integrados
+
+**Ventajas de Dokploy**:
+- Auto-hosting en tu propio VPS (control total)
+- Gestión visual de aplicaciones y bases de datos
+- Deploy automático desde GitHub
+- SSL automático
+- Backups automáticos de base de datos
+- Logs centralizados
+- Zero-downtime deployments
 
 ## 4. Modelo de Dominio
 
@@ -226,8 +240,115 @@ Usuario → Dashboard → API → Service Layer → Repository → Database
 5. **Integrable**: API REST estándar para cualquier herramienta
 6. **Performante**: Optimizada para consultas y agregaciones
 7. **Mantenible**: Código organizado y documentado
+8. **Auto-hosted**: Control total con Dokploy en VPS privado
 
-## 12. Próximos Pasos
+## 12. Deployment con Dokploy en VPS
+
+### 12.1 Configuración Inicial del VPS
+
+**Requisitos del VPS**:
+- **RAM**: Mínimo 2GB (recomendado 4GB)
+- **CPU**: 2 cores mínimo
+- **Almacenamiento**: 20GB mínimo (SSD recomendado)
+- **OS**: Ubuntu 22.04 LTS o Debian 12
+- **Dokploy**: Instalado y configurado
+
+### 12.2 Estructura de Aplicaciones en Dokploy
+
+**Crear 3 servicios en Dokploy**:
+
+1. **PostgreSQL Database**
+   - Tipo: Database → PostgreSQL 15
+   - Nombre: `metrics-db`
+   - Usuario: `metrics_user`
+   - Password: (generado automáticamente por Dokploy)
+   - Base de datos: `metrics_production`
+   - Backups automáticos: Habilitado (diario)
+
+2. **Backend API**
+   - Tipo: Application → Node.js
+   - Nombre: `metrics-backend`
+   - Repositorio: `https://github.com/tu-org/dashboard-metricas`
+   - Branch: `main`
+   - Build Command: `cd backend && npm install && npx prisma migrate deploy && npm run build`
+   - Start Command: `cd backend && npm run start`
+   - Puerto: 3000
+   - Variables de entorno:
+     ```
+     DATABASE_URL=postgresql://user:pass@metrics-db:5432/metrics_production
+     JWT_SECRET=(generado)
+     NODE_ENV=production
+     PORT=3000
+     ```
+   - Dominio: `api.dashboard-metricas.com`
+
+3. **Frontend Web**
+   - Tipo: Application → Next.js
+   - Nombre: `metrics-frontend`
+   - Repositorio: `https://github.com/tu-org/dashboard-metricas`
+   - Branch: `main`
+   - Build Command: `cd frontend && npm install && npm run build`
+   - Start Command: `cd frontend && npm run start`
+   - Puerto: 3001
+   - Variables de entorno:
+     ```
+     NEXT_PUBLIC_API_URL=https://api.dashboard-metricas.com
+     NODE_ENV=production
+     ```
+   - Dominio: `dashboard-metricas.com`
+
+### 12.3 Configuración de Dominios
+
+En Dokploy, configurar:
+- `dashboard-metricas.com` → Frontend (puerto 3001)
+- `api.dashboard-metricas.com` → Backend (puerto 3000)
+
+SSL automático con Let's Encrypt (gestionado por Dokploy).
+
+### 12.4 CI/CD con GitHub Actions
+
+Crear archivo `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy to Dokploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Dokploy Deploy
+        run: |
+          curl -X POST ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+```
+
+Dokploy genera un webhook URL que se agrega a GitHub Secrets.
+
+### 12.5 Backups
+
+Dokploy gestiona backups automáticos:
+- **Base de datos**: Backup diario a las 2 AM
+- **Retención**: 7 días (configurable)
+- **Restauración**: Un click desde Dokploy dashboard
+
+### 12.6 Monitoreo
+
+Desde Dokploy dashboard:
+- **Logs en tiempo real** de backend y frontend
+- **Métricas de CPU y RAM**
+- **Uptime monitoring**
+- **Alertas** por email (opcional)
+
+### 12.7 Escalamiento
+
+Para escalar:
+1. **Vertical**: Aumentar recursos del VPS
+2. **Horizontal**: Dokploy soporta múltiples réplicas (configurar en dashboard)
+
+## 13. Próximos Pasos
 
 1. Revisar y aprobar arquitectura
 2. Definir modelo de datos detallado

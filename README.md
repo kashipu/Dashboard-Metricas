@@ -171,11 +171,13 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
 - **TanStack Query** - Data fetching
 - **Zustand** - Estado global
 
-### DevOps
-- **Docker** - Containerización
-- **Vercel** - Deploy frontend
-- **Railway/Render** - Deploy backend
-- **GitHub Actions** - CI/CD
+### DevOps y Deployment
+- **Dokploy** - Gestión de infraestructura en VPS (Docker, DBs, deployments)
+- **VPS Privado** - Servidor con Dokploy instalado
+- **Docker** - Containerización (gestionado por Dokploy)
+- **Traefik** - Proxy reverso (incluido en Dokploy)
+- **Let's Encrypt** - SSL automático
+- **GitHub Actions** - CI/CD con webhooks a Dokploy
 
 ## Estructura de Métricas
 
@@ -411,6 +413,42 @@ npm run dev
 - Frontend: http://localhost:3001
 - Backend API: http://localhost:3000/api
 - Swagger Docs: http://localhost:3000/api-docs
+
+## Deployment con Dokploy
+
+### Requisitos del VPS
+- **RAM**: 2GB mínimo (4GB recomendado)
+- **CPU**: 2 cores
+- **Almacenamiento**: 20GB SSD
+- **OS**: Ubuntu 22.04 LTS
+- **Dokploy**: Instalado ([dokploy.com](https://dokploy.com))
+
+### Configuración Rápida
+
+1. **Crear Base de Datos en Dokploy**
+   - PostgreSQL 15
+   - Nombre: `metrics-db`
+   - Backups automáticos: Habilitado
+
+2. **Crear Backend**
+   - Conectar repo de GitHub
+   - Build: `cd backend && npm install && npx prisma migrate deploy && npm run build`
+   - Start: `cd backend && npm run start`
+   - Variables de entorno: `DATABASE_URL`, `JWT_SECRET`
+   - Dominio: `api.dashboard-metricas.com`
+
+3. **Crear Frontend**
+   - Conectar repo de GitHub
+   - Build: `cd frontend && npm install && npm run build`
+   - Start: `cd frontend && npm run start`
+   - Variable: `NEXT_PUBLIC_API_URL`
+   - Dominio: `dashboard-metricas.com`
+
+4. **CI/CD Automático**
+   - Push a `main` → Dokploy auto-deploys
+   - SSL automático con Let's Encrypt
+
+Ver [ARCHITECTURE.md - Sección 12](./ARCHITECTURE.md#12-deployment-con-dokploy-en-vps) para guía completa.
 
 ## Roadmap
 
