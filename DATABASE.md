@@ -2,19 +2,42 @@
 
 ## 1. Visión General
 
-Diseño de base de datos relacional (PostgreSQL) optimizado para almacenar y consultar métricas de múltiples productos digitales, organizadas por flujos y categorizadas por tipo.
+Diseño de base de datos relacional (PostgreSQL) optimizado para almacenar y consultar métricas de múltiples productos digitales, organizadas por flujos y categorizadas por tipo. Incluye sistema de usuarios con asignación de productos a responsables.
 
 ## 2. Diagrama Entidad-Relación
 
 ```
 ┌─────────────────────┐
-│     productos       │
+│      usuarios       │
 ├─────────────────────┤
-│ id (PK)             │
-│ codigo              │◄─────┐
-│ nombre              │      │
-│ descripcion         │      │
+│ id (PK)             │◄─────────────┐
+│ email               │              │
+│ nombre              │              │
+│ apellido            │              │
+│ password_hash       │              │
+│ cargo               │              │
+│ departamento        │              │
+│ avatar_url          │              │
+│ rol                 │              │
+│ activo              │              │
+│ ultimo_acceso       │              │
+│ created_at          │              │
+│ updated_at          │              │
+└─────────────────────┘              │
+                                     │
+                                     │ 1:N (responsable)
+                                     │
+┌─────────────────────┐              │
+│     productos       │              │
+├─────────────────────┤              │
+│ id (PK)             │              │
+│ codigo              │◄─────┐       │
+│ nombre              │      │       │
+│ descripcion         │      │       │
+│ responsable_id (FK) │──────┼───────┘
 │ metadata (JSON)     │      │
+│ icono_url           │      │
+│ color_hex           │      │
 │ activo              │      │
 │ created_at          │      │
 │ updated_at          │      │
@@ -42,9 +65,9 @@ Diseño de base de datos relacional (PostgreSQL) optimizado para almacenar y con
 ├─────────────────────┤      │
 │ id (PK)             │      │
 │ flujo_id (FK)       │──────┘
-│ nombre              │
-│ codigo              │
-│ tipo_metrica        │◄─────┐
+│ tipo_metrica_id(FK) │◄─────┐
+│ nombre              │      │
+│ codigo              │      │
 │ unidad_medida       │      │
 │ descripcion         │      │
 │ formula (JSON)      │      │
@@ -66,26 +89,96 @@ Diseño de base de datos relacional (PostgreSQL) optimizado para almacenar y con
 │ valor               │
 │ observaciones       │
 │ fuente_datos        │
-│ created_at          │
-│ updated_at          │
-│ created_by          │
-└─────────────────────┘
-
-
-┌─────────────────────┐
-│  tipos_metrica      │
-├─────────────────────┤
-│ id (PK)             │
-│ codigo              │
-│ nombre              │
-│ descripcion         │
-│ color_hex           │
-└─────────────────────┘
+│ created_by (FK)     │───┐
+│ updated_by (FK)     │───┼──► usuarios
+│ created_at          │   │
+│ updated_at          │   │
+└─────────────────────┘   │
+                          │
+┌─────────────────────┐   │
+│  tipos_metrica      │   │
+├─────────────────────┤   │
+│ id (PK)             │   │
+│ codigo              │   │
+│ nombre              │   │
+│ descripcion         │   │
+│ color_hex           │   │
+│ icono               │   │
+└─────────────────────┘   │
+                          │
+┌─────────────────────────┤
+│ producto_usuarios       │
+│ (tabla de asignación)   │
+├─────────────────────────┤
+│ id (PK)                 │
+│ producto_id (FK)        │──► productos
+│ usuario_id (FK)         │──┘
+│ puede_editar (BOOL)     │
+│ puede_ver (BOOL)        │
+│ asignado_en             │
+│ asignado_por (FK)       │──► usuarios
+└─────────────────────────┘
 ```
 
 ## 3. Esquema de Tablas
 
-### 3.1 Tabla: productos
+### 3.1 Tabla: usuarios
+
+Almacena información de usuarios del sistema con diferentes roles.
+
+```sql
+CREATE TABLE usuarios (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    nombre VARCHAR(200) NOT NULL,
+    apellido VARCHAR(200),
+    password_hash VARCHAR(255) NOT NULL,
+    cargo VARCHAR(100),
+    departamento VARCHAR(100),
+    telefono VARCHAR(50),
+    avatar_url VARCHAR(500),
+    rol VARCHAR(50) DEFAULT 'responsable',
+    metadata JSONB DEFAULT '{}',
+    activo BOOLEAN DEFAULT TRUE,
+    ultimo_acceso TIMESTAMP WITH TIME ZONE,
+    email_verificado BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT usuarios_email_lowercase CHECK (email = LOWER(email)),
+    CONSTRAINT usuarios_rol_valid CHECK (rol IN ('admin', 'responsable', 'viewer'))
+);
+
+-- Índices
+CREATE INDEX idx_usuarios_email ON usuarios(email);
+CREATE INDEX idx_usuarios_rol ON usuarios(rol);
+CREATE INDEX idx_usuarios_activo ON usuarios(activo);
+CREATE INDEX idx_usuarios_departamento ON usuarios(departamento);
+CREATE INDEX idx_usuarios_metadata ON usuarios USING GIN(metadata);
+
+-- Trigger para updated_at
+CREATE TRIGGER update_usuarios_updated_at
+    BEFORE UPDATE ON usuarios
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+```
+
+**Roles del Sistema**:
+- `admin`: Administrador total del sistema
+- `responsable`: Usuario responsable de productos (puede editar sus productos)
+- `viewer`: Solo lectura (reportes, dashboards)
+
+**Campos metadata** (JSONB) - extensible:
+```json
+{
+  "linkedin": "string",
+  "slack_id": "string",
+  "notificaciones_email": boolean,
+  "timezone": "string"
+}
+```
+
+### 3.2 Tabla: productos
 
 Almacena información de cada producto digital.
 
@@ -95,6 +188,7 @@ CREATE TABLE productos (
     codigo VARCHAR(50) UNIQUE NOT NULL,
     nombre VARCHAR(200) NOT NULL,
     descripcion TEXT,
+    responsable_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
     metadata JSONB DEFAULT '{}',
     icono_url VARCHAR(500),
     color_hex VARCHAR(7) DEFAULT '#3B82F6',
@@ -109,6 +203,7 @@ CREATE TABLE productos (
 -- Índices
 CREATE INDEX idx_productos_codigo ON productos(codigo);
 CREATE INDEX idx_productos_activo ON productos(activo);
+CREATE INDEX idx_productos_responsable_id ON productos(responsable_id);
 CREATE INDEX idx_productos_metadata ON productos USING GIN(metadata);
 
 -- Trigger para updated_at
@@ -121,15 +216,41 @@ CREATE TRIGGER update_productos_updated_at
 **Campos metadata** (JSONB):
 ```json
 {
-  "responsable": "string",
-  "departamento": "string",
   "url_produccion": "string",
+  "url_staging": "string",
   "tecnologias": ["string"],
-  "tags": ["string"]
+  "tags": ["string"],
+  "repositorio": "string"
 }
 ```
 
-### 3.2 Tabla: flujos
+### 3.3 Tabla: producto_usuarios (Asignaciones)
+
+Tabla de relación muchos-a-muchos para asignar productos a usuarios.
+Permite que un producto tenga múltiples responsables y un usuario gestione múltiples productos.
+
+```sql
+CREATE TABLE producto_usuarios (
+    id SERIAL PRIMARY KEY,
+    producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    puede_editar BOOLEAN DEFAULT TRUE,
+    puede_ver BOOLEAN DEFAULT TRUE,
+    asignado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    asignado_por INTEGER REFERENCES usuarios(id),
+
+    CONSTRAINT producto_usuarios_unique UNIQUE (producto_id, usuario_id)
+);
+
+-- Índices
+CREATE INDEX idx_producto_usuarios_producto ON producto_usuarios(producto_id);
+CREATE INDEX idx_producto_usuarios_usuario ON producto_usuarios(usuario_id);
+CREATE INDEX idx_producto_usuarios_puede_editar ON producto_usuarios(puede_editar);
+```
+
+**Nota**: Esta tabla permite flexibilidad para el futuro. Actualmente usaremos principalmente el campo `responsable_id` en la tabla productos, pero esta tabla permite asignar colaboradores adicionales.
+
+### 3.4 Tabla: flujos
 
 Representa los diferentes flujos de trabajo dentro de un producto.
 
@@ -160,7 +281,7 @@ CREATE TRIGGER update_flujos_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 ```
 
-### 3.3 Tabla: tipos_metrica
+### 3.5 Tabla: tipos_metrica
 
 Catálogo de tipos de métricas (negocio, experiencia, producto).
 
@@ -184,7 +305,7 @@ INSERT INTO tipos_metrica (codigo, nombre, descripcion, color_hex, icono, orden)
 ('producto', 'Producto', 'Métricas de uso y adopción del producto', '#3B82F6', 'chart-bar', 3);
 ```
 
-### 3.4 Tabla: metricas
+### 3.6 Tabla: metricas
 
 Define las métricas específicas de cada flujo.
 
@@ -237,9 +358,9 @@ CREATE TRIGGER update_metricas_updated_at
 }
 ```
 
-### 3.5 Tabla: valores_mensuales
+### 3.7 Tabla: valores_mensuales
 
-Almacena los valores históricos mensuales de cada métrica.
+Almacena los valores históricos mensuales de cada métrica con auditoría de quién los creó/modificó.
 
 ```sql
 CREATE TABLE valores_mensuales (
@@ -250,9 +371,10 @@ CREATE TABLE valores_mensuales (
     observaciones TEXT,
     fuente_datos VARCHAR(200),
     metadata JSONB DEFAULT '{}',
+    created_by INTEGER REFERENCES usuarios(id),
+    updated_by INTEGER REFERENCES usuarios(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_by VARCHAR(100),
 
     CONSTRAINT valores_periodo_formato CHECK (EXTRACT(DAY FROM periodo) = 1),
     CONSTRAINT valores_unique_metrica_periodo UNIQUE (metrica_id, periodo)
@@ -262,14 +384,25 @@ CREATE TABLE valores_mensuales (
 CREATE INDEX idx_valores_metrica_id ON valores_mensuales(metrica_id);
 CREATE INDEX idx_valores_periodo ON valores_mensuales(periodo DESC);
 CREATE INDEX idx_valores_metrica_periodo ON valores_mensuales(metrica_id, periodo DESC);
+CREATE INDEX idx_valores_created_by ON valores_mensuales(created_by);
+CREATE INDEX idx_valores_updated_by ON valores_mensuales(updated_by);
 CREATE INDEX idx_valores_created_at ON valores_mensuales(created_at);
 CREATE INDEX idx_valores_metadata ON valores_mensuales USING GIN(metadata);
 
--- Trigger para updated_at
+-- Trigger para updated_at y updated_by
+CREATE OR REPLACE FUNCTION update_valores_mensuales_trigger()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    -- updated_by debe ser seteado por la aplicación
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TRIGGER update_valores_mensuales_updated_at
     BEFORE UPDATE ON valores_mensuales
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+    EXECUTE FUNCTION update_valores_mensuales_trigger();
 ```
 
 **Campos metadata** (JSONB):
@@ -278,33 +411,9 @@ CREATE TRIGGER update_valores_mensuales_updated_at
   "importado_desde": "string",
   "validado": boolean,
   "anomalia_detectada": boolean,
-  "ajustado": boolean
+  "ajustado": boolean,
+  "ip_origen": "string"
 }
-```
-
-### 3.6 Tabla: usuarios (opcional, para autenticación)
-
-```sql
-CREATE TABLE usuarios (
-    id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    nombre VARCHAR(200) NOT NULL,
-    apellido VARCHAR(200),
-    password_hash VARCHAR(255) NOT NULL,
-    rol VARCHAR(50) DEFAULT 'viewer',
-    activo BOOLEAN DEFAULT TRUE,
-    ultimo_acceso TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT usuarios_email_lowercase CHECK (email = LOWER(email)),
-    CONSTRAINT usuarios_rol_valid CHECK (rol IN ('admin', 'editor', 'viewer'))
-);
-
--- Índices
-CREATE INDEX idx_usuarios_email ON usuarios(email);
-CREATE INDEX idx_usuarios_rol ON usuarios(rol);
-CREATE INDEX idx_usuarios_activo ON usuarios(activo);
 ```
 
 ## 4. Funciones y Triggers
@@ -321,9 +430,39 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
-### 4.2 Vista: vista_metricas_completas
+### 4.2 Vista: vista_productos_con_responsable
 
-Vista desnormalizada para facilitar consultas.
+Vista que une productos con información de su responsable.
+
+```sql
+CREATE OR REPLACE VIEW vista_productos_con_responsable AS
+SELECT
+    p.id AS producto_id,
+    p.codigo AS producto_codigo,
+    p.nombre AS producto_nombre,
+    p.descripcion AS producto_descripcion,
+    p.color_hex,
+    p.icono_url,
+    p.activo AS producto_activo,
+    u.id AS responsable_id,
+    u.nombre AS responsable_nombre,
+    u.apellido AS responsable_apellido,
+    u.email AS responsable_email,
+    u.cargo AS responsable_cargo,
+    u.departamento AS responsable_departamento,
+    u.avatar_url AS responsable_avatar,
+    CONCAT(u.nombre, ' ', u.apellido) AS responsable_nombre_completo,
+    p.created_at,
+    p.updated_at
+FROM productos p
+LEFT JOIN usuarios u ON u.id = p.responsable_id
+WHERE p.activo = TRUE
+ORDER BY p.nombre;
+```
+
+### 4.3 Vista: vista_metricas_completas
+
+Vista desnormalizada para facilitar consultas con toda la información.
 
 ```sql
 CREATE OR REPLACE VIEW vista_metricas_completas AS
@@ -331,6 +470,9 @@ SELECT
     p.id AS producto_id,
     p.codigo AS producto_codigo,
     p.nombre AS producto_nombre,
+    p.responsable_id,
+    CONCAT(u.nombre, ' ', u.apellido) AS responsable_nombre,
+    u.email AS responsable_email,
     f.id AS flujo_id,
     f.nombre AS flujo_nombre,
     f.orden AS flujo_orden,
@@ -345,6 +487,7 @@ SELECT
     m.orden AS metrica_orden,
     m.activo AS metrica_activa
 FROM productos p
+LEFT JOIN usuarios u ON u.id = p.responsable_id
 INNER JOIN flujos f ON f.producto_id = p.id
 INNER JOIN metricas m ON m.flujo_id = f.id
 INNER JOIN tipos_metrica tm ON tm.id = m.tipo_metrica_id
@@ -352,10 +495,12 @@ WHERE p.activo = TRUE
 ORDER BY p.nombre, f.orden, m.orden;
 ```
 
-### 4.3 Vista: vista_valores_recientes
+### 4.4 Vista: vista_valores_con_auditoria
+
+Vista que incluye información de auditoría (quién creó/modificó).
 
 ```sql
-CREATE OR REPLACE VIEW vista_valores_recientes AS
+CREATE OR REPLACE VIEW vista_valores_con_auditoria AS
 SELECT
     vm.id,
     vm.metrica_id,
@@ -366,9 +511,24 @@ SELECT
     m.unidad_medida,
     m.target,
     f.nombre AS flujo_nombre,
+    p.id AS producto_id,
     p.nombre AS producto_nombre,
     p.codigo AS producto_codigo,
     tm.nombre AS tipo_metrica_nombre,
+    -- Usuario que creó
+    uc.id AS creado_por_id,
+    CONCAT(uc.nombre, ' ', uc.apellido) AS creado_por_nombre,
+    uc.email AS creado_por_email,
+    vm.created_at,
+    -- Usuario que modificó
+    uu.id AS actualizado_por_id,
+    CONCAT(uu.nombre, ' ', uu.apellido) AS actualizado_por_nombre,
+    uu.email AS actualizado_por_email,
+    vm.updated_at,
+    -- Responsable del producto
+    ur.id AS responsable_producto_id,
+    CONCAT(ur.nombre, ' ', ur.apellido) AS responsable_producto_nombre,
+    -- Estado del target
     CASE
         WHEN m.target IS NOT NULL AND vm.valor >= m.target THEN 'cumplido'
         WHEN m.target IS NOT NULL AND vm.valor < m.target THEN 'pendiente'
@@ -379,85 +539,172 @@ INNER JOIN metricas m ON m.id = vm.metrica_id
 INNER JOIN flujos f ON f.id = m.flujo_id
 INNER JOIN productos p ON p.id = f.producto_id
 INNER JOIN tipos_metrica tm ON tm.id = m.tipo_metrica_id
+LEFT JOIN usuarios uc ON uc.id = vm.created_by
+LEFT JOIN usuarios uu ON uu.id = vm.updated_by
+LEFT JOIN usuarios ur ON ur.id = p.responsable_id
 WHERE p.activo = TRUE
 ORDER BY vm.periodo DESC, p.nombre, f.orden, m.orden;
 ```
 
 ## 5. Queries Comunes
 
-### 5.1 Obtener todas las métricas de un producto
+### 5.1 Obtener productos asignados a un usuario
+
+```sql
+SELECT
+    p.*,
+    CONCAT(u.nombre, ' ', u.apellido) AS responsable_nombre
+FROM productos p
+INNER JOIN usuarios u ON u.id = p.responsable_id
+WHERE p.responsable_id = $1
+    AND p.activo = TRUE
+ORDER BY p.nombre;
+```
+
+### 5.2 Obtener todos los productos que un usuario puede gestionar
+
+Incluye productos donde es responsable principal O tiene asignación explícita.
+
+```sql
+SELECT DISTINCT
+    p.*,
+    ur.nombre AS responsable_nombre,
+    CASE
+        WHEN p.responsable_id = $1 THEN TRUE
+        ELSE pu.puede_editar
+    END AS puede_editar
+FROM productos p
+LEFT JOIN usuarios ur ON ur.id = p.responsable_id
+LEFT JOIN producto_usuarios pu ON pu.producto_id = p.id
+WHERE (p.responsable_id = $1 OR pu.usuario_id = $1)
+    AND p.activo = TRUE
+ORDER BY p.nombre;
+```
+
+### 5.3 Obtener métricas de productos de un responsable
 
 ```sql
 SELECT *
 FROM vista_metricas_completas
-WHERE producto_codigo = 'mi-producto'
-ORDER BY flujo_orden, metrica_orden;
+WHERE responsable_id = $1
+ORDER BY producto_nombre, flujo_orden, metrica_orden;
 ```
 
-### 5.2 Obtener valores de métricas de últimos 12 meses
+### 5.4 Registrar valor mensual con auditoría
 
 ```sql
+INSERT INTO valores_mensuales (
+    metrica_id,
+    periodo,
+    valor,
+    observaciones,
+    fuente_datos,
+    created_by
+) VALUES (
+    $1,  -- metrica_id
+    $2,  -- periodo (DATE '2025-03-01')
+    $3,  -- valor
+    $4,  -- observaciones
+    $5,  -- fuente_datos
+    $6   -- usuario_id que lo registra
+)
+ON CONFLICT (metrica_id, periodo)
+DO UPDATE SET
+    valor = EXCLUDED.valor,
+    observaciones = EXCLUDED.observaciones,
+    fuente_datos = EXCLUDED.fuente_datos,
+    updated_by = EXCLUDED.created_by,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+```
+
+### 5.5 Obtener valores mensuales con filtros
+
+```sql
+-- Filtrar por producto y flujo
 SELECT
-    p.nombre AS producto,
-    f.nombre AS flujo,
-    m.nombre AS metrica,
-    vm.periodo,
-    vm.valor,
+    v.*,
+    m.nombre AS metrica_nombre,
     m.unidad_medida,
-    m.target
-FROM valores_mensuales vm
-INNER JOIN metricas m ON m.id = vm.metrica_id
+    tm.nombre AS tipo_metrica
+FROM valores_mensuales v
+INNER JOIN metricas m ON m.id = v.metrica_id
+INNER JOIN tipos_metrica tm ON tm.id = m.tipo_metrica_id
 INNER JOIN flujos f ON f.id = m.flujo_id
 INNER JOIN productos p ON p.id = f.producto_id
-WHERE p.codigo = 'mi-producto'
-    AND vm.periodo >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '12 months')
-ORDER BY vm.periodo DESC, f.orden, m.orden;
+WHERE p.id = $1  -- producto_id
+    AND ($2::INTEGER IS NULL OR f.id = $2)  -- flujo_id (opcional)
+    AND v.periodo >= $3  -- fecha_inicio
+    AND v.periodo <= $4  -- fecha_fin
+ORDER BY v.periodo DESC, f.orden, m.orden;
 ```
 
-### 5.3 Comparación mes actual vs mes anterior
+### 5.6 Historial de cambios de un valor
 
 ```sql
-SELECT
-    m.nombre AS metrica,
-    current_month.valor AS valor_actual,
-    previous_month.valor AS valor_anterior,
-    ROUND(
-        ((current_month.valor - previous_month.valor) / previous_month.valor * 100)::numeric,
-        2
-    ) AS porcentaje_cambio
-FROM metricas m
-LEFT JOIN valores_mensuales current_month
-    ON current_month.metrica_id = m.id
-    AND current_month.periodo = DATE_TRUNC('month', CURRENT_DATE)
-LEFT JOIN valores_mensuales previous_month
-    ON previous_month.metrica_id = m.id
-    AND previous_month.periodo = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
-WHERE m.flujo_id IN (SELECT id FROM flujos WHERE producto_id = 1);
+-- Para implementar auditoría completa, se puede crear una tabla de historial
+CREATE TABLE valores_mensuales_historial (
+    id SERIAL PRIMARY KEY,
+    valor_mensual_id INTEGER REFERENCES valores_mensuales(id),
+    metrica_id INTEGER,
+    periodo DATE,
+    valor_anterior DECIMAL(15, 4),
+    valor_nuevo DECIMAL(15, 4),
+    modificado_por INTEGER REFERENCES usuarios(id),
+    modificado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    motivo TEXT
+);
+
+-- Trigger para registrar cambios
+CREATE OR REPLACE FUNCTION registrar_cambio_valor()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.valor != NEW.valor THEN
+        INSERT INTO valores_mensuales_historial (
+            valor_mensual_id,
+            metrica_id,
+            periodo,
+            valor_anterior,
+            valor_nuevo,
+            modificado_por
+        ) VALUES (
+            OLD.id,
+            OLD.metrica_id,
+            OLD.periodo,
+            OLD.valor,
+            NEW.valor,
+            NEW.updated_by
+        );
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_historial_valores
+    AFTER UPDATE ON valores_mensuales
+    FOR EACH ROW
+    EXECUTE FUNCTION registrar_cambio_valor();
 ```
 
-### 5.4 Ranking de productos por performance
+### 5.7 Dashboard del responsable
 
 ```sql
+-- Resumen de productos del responsable
 SELECT
-    p.nombre AS producto,
+    COUNT(DISTINCT p.id) AS total_productos,
+    COUNT(DISTINCT f.id) AS total_flujos,
     COUNT(DISTINCT m.id) AS total_metricas,
+    COUNT(DISTINCT vm.id) AS total_valores_registrados,
     COUNT(DISTINCT CASE
         WHEN vm.valor >= m.target THEN m.id
-    END) AS metricas_cumplidas,
-    ROUND(
-        COUNT(DISTINCT CASE WHEN vm.valor >= m.target THEN m.id END)::numeric /
-        COUNT(DISTINCT m.id) * 100,
-        2
-    ) AS porcentaje_cumplimiento
+    END) AS metricas_cumpliendo_target
 FROM productos p
-INNER JOIN flujos f ON f.producto_id = p.id
-INNER JOIN metricas m ON m.flujo_id = f.id
+LEFT JOIN flujos f ON f.producto_id = p.id AND f.activo = TRUE
+LEFT JOIN metricas m ON m.flujo_id = f.id AND m.activo = TRUE
 LEFT JOIN valores_mensuales vm ON vm.metrica_id = m.id
     AND vm.periodo = DATE_TRUNC('month', CURRENT_DATE)
-WHERE p.activo = TRUE
-    AND m.target IS NOT NULL
-GROUP BY p.id, p.nombre
-ORDER BY porcentaje_cumplimiento DESC;
+WHERE p.responsable_id = $1
+    AND p.activo = TRUE;
 ```
 
 ## 6. Optimización
@@ -465,19 +712,20 @@ ORDER BY porcentaje_cumplimiento DESC;
 ### 6.1 Índices Compuestos
 
 ```sql
--- Para consultas frecuentes por producto y periodo
-CREATE INDEX idx_valores_producto_periodo ON valores_mensuales(metrica_id, periodo DESC)
-    WHERE periodo >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '24 months');
+-- Para consultas frecuentes por responsable y periodo
+CREATE INDEX idx_valores_responsable_periodo ON valores_mensuales(created_by, periodo DESC);
 
--- Para búsquedas full-text en nombres
-CREATE INDEX idx_productos_nombre_trgm ON productos USING gin(nombre gin_trgm_ops);
-CREATE INDEX idx_metricas_nombre_trgm ON metricas USING gin(nombre gin_trgm_ops);
+-- Para filtrar productos por responsable y código
+CREATE INDEX idx_productos_responsable_codigo ON productos(responsable_id, codigo);
+
+-- Para búsquedas de valores por usuario que los creó
+CREATE INDEX idx_valores_created_by_periodo ON valores_mensuales(created_by, periodo DESC);
 ```
 
 ### 6.2 Particionamiento (para grandes volúmenes)
 
 ```sql
--- Particionar valores_mensuales por año
+-- Particionar valores_mensuales por año si hay muchos datos
 CREATE TABLE valores_mensuales_2024 PARTITION OF valores_mensuales
     FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
 
@@ -485,19 +733,48 @@ CREATE TABLE valores_mensuales_2025 PARTITION OF valores_mensuales
     FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
 ```
 
-## 7. Seguridad
+## 7. Seguridad y Permisos
 
 ### 7.1 Row Level Security (RLS)
 
 ```sql
--- Habilitar RLS
+-- Habilitar RLS en productos
 ALTER TABLE productos ENABLE ROW LEVEL SECURITY;
+
+-- Política: Responsables solo ven sus productos
+CREATE POLICY productos_responsable_policy ON productos
+    FOR SELECT
+    USING (
+        responsable_id = current_setting('app.user_id')::INTEGER
+        OR current_setting('app.user_rol') = 'admin'
+    );
+
+-- Política: Responsables solo editan sus productos
+CREATE POLICY productos_responsable_edit_policy ON productos
+    FOR UPDATE
+    USING (
+        responsable_id = current_setting('app.user_id')::INTEGER
+        OR current_setting('app.user_rol') = 'admin'
+    );
+
+-- Habilitar RLS en valores_mensuales
 ALTER TABLE valores_mensuales ENABLE ROW LEVEL SECURITY;
 
--- Política de ejemplo: usuarios solo ven productos de su departamento
-CREATE POLICY productos_departamento_policy ON productos
-    FOR SELECT
-    USING (metadata->>'departamento' = current_setting('app.user_departamento'));
+-- Política: Solo puedes registrar valores de tus productos
+CREATE POLICY valores_mensuales_responsable_policy ON valores_mensuales
+    FOR INSERT
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM metricas m
+            INNER JOIN flujos f ON f.id = m.flujo_id
+            INNER JOIN productos p ON p.id = f.producto_id
+            WHERE m.id = metrica_id
+                AND (
+                    p.responsable_id = current_setting('app.user_id')::INTEGER
+                    OR current_setting('app.user_rol') = 'admin'
+                )
+        )
+    );
 ```
 
 ### 7.2 Roles de Base de Datos
@@ -509,31 +786,68 @@ GRANT CONNECT ON DATABASE metrics_db TO metrics_readonly;
 GRANT USAGE ON SCHEMA public TO metrics_readonly;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO metrics_readonly;
 
--- Rol de aplicación
+-- Rol de aplicación (con permisos limitados)
 CREATE ROLE metrics_app;
 GRANT CONNECT ON DATABASE metrics_db TO metrics_app;
 GRANT USAGE ON SCHEMA public TO metrics_app;
-GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO metrics_app;
+GRANT SELECT, INSERT, UPDATE ON productos, flujos, metricas, valores_mensuales TO metrics_app;
+GRANT SELECT ON usuarios, tipos_metrica TO metrics_app;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO metrics_app;
+
+-- Rol de admin (todos los permisos)
+CREATE ROLE metrics_admin;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO metrics_admin;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO metrics_admin;
 ```
 
-## 8. Backup y Mantenimiento
+## 8. Datos de Ejemplo
 
-### 8.1 Estrategia de Backup
-
-```bash
-# Backup diario automatizado
-pg_dump -h localhost -U postgres -d metrics_db -F c -b -v -f backup_$(date +%Y%m%d).backup
-
-# Backup de solo datos
-pg_dump -h localhost -U postgres -d metrics_db -a -t valores_mensuales -f valores_backup.sql
-```
-
-### 8.2 Mantenimiento
+### 8.1 Seed de Usuarios
 
 ```sql
--- Vacuum regular
+-- Insertar usuarios de ejemplo (passwords deben hashearse en la aplicación)
+INSERT INTO usuarios (email, nombre, apellido, cargo, departamento, rol, password_hash) VALUES
+('admin@empresa.com', 'Admin', 'Sistema', 'Administrador', 'TI', 'admin', '$2b$10$...'),
+('maria.gonzalez@empresa.com', 'María', 'González', 'Product Manager', 'Producto', 'responsable', '$2b$10$...'),
+('carlos.ruiz@empresa.com', 'Carlos', 'Ruiz', 'Growth Lead', 'Marketing', 'responsable', '$2b$10$...'),
+('ana.lopez@empresa.com', 'Ana', 'López', 'Data Analyst', 'Analytics', 'viewer', '$2b$10$...');
+```
+
+### 8.2 Seed de Producto con Responsable
+
+```sql
+-- Insertar producto con responsable
+INSERT INTO productos (codigo, nombre, descripcion, responsable_id, color_hex)
+VALUES (
+    'ecommerce-web',
+    'E-commerce Web',
+    'Tienda en línea principal',
+    (SELECT id FROM usuarios WHERE email = 'maria.gonzalez@empresa.com'),
+    '#10B981'
+);
+```
+
+## 9. Backup y Mantenimiento
+
+### 9.1 Estrategia de Backup
+
+```bash
+# Backup completo diario
+pg_dump -h localhost -U postgres -d metrics_db \
+    -F c -b -v -f backup_$(date +%Y%m%d).backup
+
+# Backup solo de valores mensuales (tabla más grande)
+pg_dump -h localhost -U postgres -d metrics_db \
+    -t valores_mensuales \
+    -F c -b -v -f valores_backup_$(date +%Y%m%d).backup
+```
+
+### 9.2 Mantenimiento
+
+```sql
+-- Vacuum regular (ejecutar semanalmente)
 VACUUM ANALYZE valores_mensuales;
+VACUUM ANALYZE productos;
 
 -- Reindexar tablas grandes
 REINDEX TABLE valores_mensuales;
@@ -543,45 +857,24 @@ DELETE FROM valores_mensuales
 WHERE periodo < DATE_TRUNC('month', CURRENT_DATE - INTERVAL '5 years');
 ```
 
-## 9. Modelo de Datos Ejemplo
-
-### Ejemplo: Producto E-commerce
-
-```sql
--- Producto
-INSERT INTO productos (codigo, nombre, descripcion)
-VALUES ('ecommerce-web', 'E-commerce Web', 'Tienda en línea principal');
-
--- Flujos
-INSERT INTO flujos (producto_id, nombre, orden) VALUES
-(1, 'Adquisición', 1),
-(1, 'Activación', 2),
-(1, 'Conversión', 3),
-(1, 'Retención', 4);
-
--- Métricas para flujo "Conversión"
-INSERT INTO metricas (flujo_id, tipo_metrica_id, codigo, nombre, unidad_medida, target, orden) VALUES
-(3, 1, 'tasa_conversion', 'Tasa de Conversión', 'porcentaje', 3.5, 1),
-(3, 1, 'ticket_promedio', 'Ticket Promedio', 'dinero', 85.00, 2),
-(3, 1, 'ingresos_totales', 'Ingresos Totales', 'dinero', 150000.00, 3);
-
--- Valores mensuales
-INSERT INTO valores_mensuales (metrica_id, periodo, valor, fuente_datos) VALUES
-(1, '2025-01-01', 3.2, 'Google Analytics'),
-(1, '2025-02-01', 3.5, 'Google Analytics'),
-(1, '2025-03-01', 3.8, 'Google Analytics');
-```
-
 ## 10. Consideraciones Futuras
 
 ### 10.1 Escalabilidad
 - Considerar TimescaleDB para series temporales
-- Implementar particionamiento por fecha
-- Caché de agregaciones frecuentes
+- Implementar particionamiento por fecha en valores_mensuales
+- Cache de agregaciones frecuentes con Redis
+- Réplicas de lectura para reportes
 
 ### 10.2 Funcionalidades Adicionales
-- Alertas automáticas cuando métricas no cumplen targets
-- Auditoría de cambios en valores
-- Versionado de métricas
-- Métricas calculadas en tiempo real
-- Comparaciones con periodos anteriores
+- Tabla de notificaciones para alertas
+- Tabla de comentarios en métricas
+- Tabla de metas/objetivos (diferentes de targets)
+- Tabla de equipos (múltiples responsables organizados)
+- Tabla de etiquetas/tags para productos
+- Sistema de aprobaciones para valores (workflow)
+
+### 10.3 Auditoría Completa
+- Tabla de logs de todas las operaciones
+- Registro de accesos (login/logout)
+- Historial de cambios en todas las tablas
+- Retención de datos eliminados (soft delete)
