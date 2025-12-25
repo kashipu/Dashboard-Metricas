@@ -254,9 +254,35 @@ María NO puede:
    - Gestionar usuarios
 ```
 
+### Estructura Organizacional
+
+El sistema captura la jerarquía del **Centro de Diseño** para permitir visualizaciones agregadas en el futuro:
+
+```
+Centro de Diseño
+└── Direcciones
+    └── Líderes Senior
+        └── Líderes Junior
+            └── Tribus
+                └── Diseñadores
+                    └── Productos → Flujos → Métricas
+```
+
+**Información capturada por diseñador**:
+- Dirección a la que pertenece
+- Líder Senior
+- Líder Junior
+- Tribu
+
+**Visualizaciones futuras**:
+- Dashboard por tribu
+- Dashboard por dirección
+- Dashboard general del Centro de Diseño
+
 ### Filtros y Búsquedas
 
 - Filtrar productos por diseñador
+- Filtrar por tribu o dirección
 - Filtrar por departamento del diseñador
 - Ver "Mis Productos" (solo tus productos asignados)
 - Búsqueda global por nombre, código, diseñador

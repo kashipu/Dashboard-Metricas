@@ -138,6 +138,13 @@ CREATE TABLE usuarios (
     telefono VARCHAR(50),
     avatar_url VARCHAR(500),
     rol VARCHAR(50) DEFAULT 'responsable',
+
+    -- Estructura organizacional del Centro de Diseño
+    direccion VARCHAR(100),           -- Dirección a la que pertenece
+    lider_senior VARCHAR(200),        -- Líder Senior
+    lider_junior VARCHAR(200),        -- Líder Junior
+    tribu VARCHAR(100),               -- Tribu a la que pertenece
+
     metadata JSONB DEFAULT '{}',
     activo BOOLEAN DEFAULT TRUE,
     ultimo_acceso TIMESTAMP WITH TIME ZONE,
@@ -154,6 +161,8 @@ CREATE INDEX idx_usuarios_email ON usuarios(email);
 CREATE INDEX idx_usuarios_rol ON usuarios(rol);
 CREATE INDEX idx_usuarios_activo ON usuarios(activo);
 CREATE INDEX idx_usuarios_departamento ON usuarios(departamento);
+CREATE INDEX idx_usuarios_direccion ON usuarios(direccion);
+CREATE INDEX idx_usuarios_tribu ON usuarios(tribu);
 CREATE INDEX idx_usuarios_metadata ON usuarios USING GIN(metadata);
 
 -- Trigger para updated_at
@@ -167,6 +176,25 @@ CREATE TRIGGER update_usuarios_updated_at
 - `admin`: Administrador total del sistema
 - `responsable`: Usuario responsable de productos (puede editar sus productos)
 - `viewer`: Solo lectura (reportes, dashboards)
+
+**Estructura Organizacional del Centro de Diseño**:
+La jerarquía organizacional se captura mediante campos simples para permitir futuras visualizaciones agregadas:
+```
+Centro de Diseño
+└── Dirección (direccion)
+    └── Líder Senior (lider_senior)
+        └── Líder Junior (lider_junior)
+            └── Tribu (tribu)
+                └── Diseñador (nombre + apellido)
+                    └── Productos
+                        └── Flujos
+                            └── Métricas
+```
+
+Estos campos permiten filtrar y generar visualizaciones por:
+- Dirección completa
+- Tribu específica
+- Todo el Centro de Diseño
 
 **Campos metadata** (JSONB) - extensible:
 ```json
@@ -866,6 +894,74 @@ LEFT JOIN valores_mensuales vm ON vm.metrica_id = m.id
     AND vm.periodo = DATE_TRUNC('month', CURRENT_DATE)
 WHERE p.responsable_id = $1
     AND p.activo = TRUE;
+```
+
+### 5.8 Consultas por estructura organizacional
+
+```sql
+-- Obtener todos los diseñadores de una tribu
+SELECT
+    id,
+    nombre,
+    apellido,
+    email,
+    cargo,
+    rol,
+    tribu,
+    lider_junior,
+    lider_senior,
+    direccion
+FROM usuarios
+WHERE tribu = $1
+    AND activo = TRUE
+ORDER BY nombre;
+
+-- Obtener métricas agregadas por dirección
+SELECT
+    u.direccion,
+    COUNT(DISTINCT u.id) AS total_disenadores,
+    COUNT(DISTINCT p.id) AS total_productos,
+    COUNT(DISTINCT f.id) AS total_flujos,
+    COUNT(DISTINCT m.id) AS total_metricas
+FROM usuarios u
+LEFT JOIN productos p ON p.responsable_id = u.id
+LEFT JOIN flujos f ON f.producto_id = p.id
+LEFT JOIN metricas m ON m.flujo_id = f.id
+WHERE u.direccion = $1
+    AND u.activo = TRUE
+GROUP BY u.direccion;
+
+-- Obtener métricas agregadas por tribu
+SELECT
+    u.tribu,
+    u.lider_junior,
+    COUNT(DISTINCT u.id) AS total_disenadores,
+    COUNT(DISTINCT p.id) AS total_productos,
+    COUNT(DISTINCT vm.id) FILTER (WHERE vm.periodo >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '6 months')) AS valores_ultimos_6_meses
+FROM usuarios u
+LEFT JOIN productos p ON p.responsable_id = u.id
+LEFT JOIN flujos f ON f.producto_id = p.id
+LEFT JOIN metricas m ON m.flujo_id = f.id
+LEFT JOIN valores_mensuales vm ON vm.metrica_id = m.id
+WHERE u.tribu = $1
+    AND u.activo = TRUE
+GROUP BY u.tribu, u.lider_junior;
+
+-- Dashboard completo del Centro de Diseño
+SELECT
+    COUNT(DISTINCT u.direccion) AS total_direcciones,
+    COUNT(DISTINCT u.tribu) AS total_tribus,
+    COUNT(DISTINCT u.id) FILTER (WHERE u.rol = 'responsable') AS total_disenadores,
+    COUNT(DISTINCT p.id) AS total_productos,
+    COUNT(DISTINCT f.id) AS total_flujos,
+    COUNT(DISTINCT m.id) AS total_metricas,
+    COUNT(DISTINCT vm.id) FILTER (WHERE vm.periodo >= DATE_TRUNC('month', CURRENT_DATE)) AS valores_mes_actual
+FROM usuarios u
+LEFT JOIN productos p ON p.responsable_id = u.id AND p.activo = TRUE
+LEFT JOIN flujos f ON f.producto_id = p.id AND f.activo = TRUE
+LEFT JOIN metricas m ON m.flujo_id = f.id AND m.activo = TRUE
+LEFT JOIN valores_mensuales vm ON vm.metrica_id = m.id
+WHERE u.activo = TRUE;
 ```
 
 ## 6. Optimización
