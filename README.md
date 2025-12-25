@@ -49,7 +49,22 @@ Este proyecto permite a las organizaciones:
 - **Gráficas complementarias**: Mini-charts en vista completa, gráficas de 12 meses en vista detallada
 - **Insights automáticos**: Análisis de tendencias, comparaciones y recomendaciones
 
+### Chat con IA - Asistente Inteligente ⭐ NUEVO
+- **Botón flotante con IA**: Chat contextual para hacer preguntas sobre métricas en lenguaje natural
+- **Lee datos reales**: La IA accede directamente a PostgreSQL y lee los valores reales de tus productos
+- **Análisis avanzado**: Calcula promedios, detecta tendencias, compara períodos, genera insights
+- **Contextual y seguro**: Solo accede a productos del usuario autenticado
+- **Modelos soportados**: OpenAI GPT-4 Turbo o Anthropic Claude 3.5 Sonnet
+- **Ejemplos de preguntas**:
+  - "¿Cómo está el NPS de mi producto este mes?"
+  - "Compara la tasa de conversión de los últimos 3 meses"
+  - "¿Qué métricas bajaron en el último mes?"
+  - "Dame un resumen del flujo de Colocación"
+  - "¿Hay alguna métrica que necesite atención?"
+
 ## Documentación Completa
+
+> 📝 **Nota**: Toda la documentación está escrita en español para facilitar el desarrollo y colaboración del equipo.
 
 Este repositorio contiene documentación exhaustiva de arquitectura y plan de implementación:
 
@@ -88,6 +103,13 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
    - Arquitectura en capas
    - Middleware y servicios
    - Servicios de exportación BI
+   - **Chat con IA - Asistente de Métricas**: ⭐
+     - Servicio ChatAIService que lee datos reales de PostgreSQL
+     - Endpoint POST /api/chat/ask
+     - Soporte OpenAI GPT-4 y Anthropic Claude
+     - Ejemplos de análisis: tendencias, comparaciones, alertas
+     - Rate limiting y caché
+     - Configuración por variables de entorno
    - Testing y deployment
    - Mejores prácticas
 
@@ -98,6 +120,12 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
    - Custom hooks
    - Estado global (Zustand)
    - API client
+   - **TailwindCSS 4**: Nueva configuración con @import 'tailwindcss'
+   - **Chat con IA - Componentes Frontend**: ⭐
+     - FloatingChatButton.tsx (botón flotante)
+     - ChatPanel.tsx (panel deslizable)
+     - useChatAI() hook para estado y API
+     - Integración completa con backend
    - Responsive design
    - Optimizaciones
 

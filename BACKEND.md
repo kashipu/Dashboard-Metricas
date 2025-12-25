@@ -1298,3 +1298,557 @@ volumes:
 8. **Testing**: Cobertura de tests unitarios e integración
 9. **Documentation**: Swagger para documentación de API
 10. **Performance**: Queries optimizadas, caching cuando sea necesario
+
+## 14. Chat con IA - Asistente de Métricas
+
+### 14.1 Descripción General
+
+El sistema incluye un **asistente de IA** que permite a los usuarios hacer preguntas en lenguaje natural sobre sus métricas. La IA **lee los datos reales** del producto del usuario desde la base de datos y puede realizar análisis, comparaciones y generar insights.
+
+**Características clave**:
+- ✅ Lee datos reales de PostgreSQL
+- ✅ Análisis contextual (solo productos del usuario autenticado)
+- ✅ Respuestas en lenguaje natural
+- ✅ Comparaciones temporales, detección de tendencias
+- ✅ Soporte para OpenAI GPT-4, Anthropic Claude, o modelos compatibles
+- ✅ Configurable via variables de entorno
+
+### 14.2 Variables de Entorno Requeridas
+
+Agregar al archivo `.env`:
+
+```bash
+# Chat con IA - Configuración del modelo
+AI_PROVIDER=openai           # opciones: "openai", "anthropic"
+OPENAI_API_KEY=sk-...        # Si usas OpenAI
+ANTHROPIC_API_KEY=sk-ant-... # Si usas Anthropic Claude
+AI_MODEL=gpt-4-turbo         # o "claude-3-5-sonnet-20241022"
+AI_MAX_TOKENS=1000           # Máximo de tokens en respuesta
+AI_TEMPERATURE=0.7           # Creatividad (0-1)
+```
+
+### 14.3 Instalación de Dependencias
+
+```bash
+# Si usas OpenAI
+npm install openai
+
+# Si usas Anthropic Claude
+npm install @anthropic-ai/sdk
+
+# Ambas opciones
+npm install openai @anthropic-ai/sdk
+```
+
+### 14.4 Servicio de IA - ChatAIService
+
+```typescript
+// src/services/ChatAIService.ts
+import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import { prisma } from '../lib/prisma';
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface ProductMetricsContext {
+  productos: Array<{
+    codigo: string;
+    nombre: string;
+    flujos: Array<{
+      nombre: string;
+      metricas: Array<{
+        nombre: string;
+        tipo_metrica: string;
+        unidad_medida: string;
+        valores_recientes: Array<{
+          periodo: string;
+          valor: number;
+        }>;
+      }>;
+    }>;
+  }>;
+}
+
+export class ChatAIService {
+  private openai?: OpenAI;
+  private anthropic?: Anthropic;
+  private provider: string;
+  private model: string;
+  private maxTokens: number;
+  private temperature: number;
+
+  constructor() {
+    this.provider = process.env.AI_PROVIDER || 'openai';
+    this.model = process.env.AI_MODEL || 'gpt-4-turbo';
+    this.maxTokens = parseInt(process.env.AI_MAX_TOKENS || '1000', 10);
+    this.temperature = parseFloat(process.env.AI_TEMPERATURE || '0.7');
+
+    // Inicializar cliente según proveedor
+    if (this.provider === 'openai') {
+      this.openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+    } else if (this.provider === 'anthropic') {
+      this.anthropic = new Anthropic({
+        apiKey: process.env.ANTHROPIC_API_KEY,
+      });
+    }
+  }
+
+  /**
+   * Obtiene los datos reales de métricas del usuario desde la base de datos
+   */
+  async getUserMetricsContext(userId: number): Promise<ProductMetricsContext> {
+    // Obtener productos asignados al usuario (diseñador)
+    const productos = await prisma.producto.findMany({
+      where: {
+        responsable_id: userId,
+      },
+      select: {
+        codigo: true,
+        nombre: true,
+        flujos: {
+          select: {
+            nombre: true,
+            metricas: {
+              select: {
+                nombre: true,
+                tipo_metrica: true,
+                unidad_medida: true,
+                valores_mensuales: {
+                  orderBy: {
+                    periodo: 'desc',
+                  },
+                  take: 6, // Últimos 6 meses
+                  select: {
+                    periodo: true,
+                    valor: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Formatear datos para el contexto de la IA
+    return {
+      productos: productos.map((producto) => ({
+        codigo: producto.codigo,
+        nombre: producto.nombre,
+        flujos: producto.flujos.map((flujo) => ({
+          nombre: flujo.nombre,
+          metricas: flujo.metricas.map((metrica) => ({
+            nombre: metrica.nombre,
+            tipo_metrica: metrica.tipo_metrica,
+            unidad_medida: metrica.unidad_medida,
+            valores_recientes: metrica.valores_mensuales.map((valor) => ({
+              periodo: valor.periodo.toISOString().substring(0, 7), // YYYY-MM
+              valor: valor.valor,
+            })),
+          })),
+        })),
+      })),
+    };
+  }
+
+  /**
+   * Construye el prompt del sistema con el contexto de datos reales
+   */
+  private buildSystemPrompt(context: ProductMetricsContext): string {
+    const contextJSON = JSON.stringify(context, null, 2);
+
+    return `Eres un asistente experto en análisis de métricas de productos digitales.
+
+DATOS REALES DEL USUARIO:
+${contextJSON}
+
+INSTRUCCIONES:
+- Responde en español, de manera concisa y profesional
+- Usa los datos reales proporcionados para responder preguntas
+- Puedes calcular promedios, tendencias, comparaciones entre períodos
+- Si detectas tendencias positivas o negativas, menciónalo
+- Si el usuario pregunta sobre un producto que no tiene asignado, responde: "No tienes acceso a ese producto"
+- Formatea números según su unidad (%, tiempo, moneda, etc.)
+- Siempre menciona el período de los datos cuando sea relevante
+
+CAPACIDADES DE ANÁLISIS:
+- Cálculo de promedios, máximos, mínimos
+- Comparación mes a mes, trimestre a trimestre
+- Detección de tendencias (crecimiento/decrecimiento)
+- Identificación de métricas con mejor/peor rendimiento
+- Análisis por flujo o producto completo
+- Alertas si valores están fuera de benchmarks esperados`;
+  }
+
+  /**
+   * Envía pregunta al modelo de IA y obtiene respuesta
+   */
+  async askQuestion(
+    userId: number,
+    question: string,
+    conversationHistory: ChatMessage[] = []
+  ): Promise<string> {
+    try {
+      // 1. Obtener contexto con datos reales del usuario
+      const context = await this.getUserMetricsContext(userId);
+
+      // 2. Validar que el usuario tenga productos asignados
+      if (context.productos.length === 0) {
+        return 'No tienes productos asignados. Solicita a un administrador que te asigne productos para poder consultar métricas.';
+      }
+
+      // 3. Construir prompt del sistema
+      const systemPrompt = this.buildSystemPrompt(context);
+
+      // 4. Llamar al modelo según proveedor
+      if (this.provider === 'openai' && this.openai) {
+        return await this.askOpenAI(systemPrompt, question, conversationHistory);
+      } else if (this.provider === 'anthropic' && this.anthropic) {
+        return await this.askAnthropic(systemPrompt, question, conversationHistory);
+      } else {
+        throw new Error(`Proveedor de IA no configurado: ${this.provider}`);
+      }
+    } catch (error) {
+      console.error('Error en ChatAIService:', error);
+      throw new Error('Error al procesar la pregunta con IA');
+    }
+  }
+
+  /**
+   * Llamada a OpenAI GPT
+   */
+  private async askOpenAI(
+    systemPrompt: string,
+    question: string,
+    conversationHistory: ChatMessage[]
+  ): Promise<string> {
+    if (!this.openai) {
+      throw new Error('OpenAI no está inicializado');
+    }
+
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt },
+      ...conversationHistory.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+      { role: 'user', content: question },
+    ];
+
+    const response = await this.openai.chat.completions.create({
+      model: this.model,
+      messages,
+      max_tokens: this.maxTokens,
+      temperature: this.temperature,
+    });
+
+    return response.choices[0]?.message?.content || 'No pude generar una respuesta.';
+  }
+
+  /**
+   * Llamada a Anthropic Claude
+   */
+  private async askAnthropic(
+    systemPrompt: string,
+    question: string,
+    conversationHistory: ChatMessage[]
+  ): Promise<string> {
+    if (!this.anthropic) {
+      throw new Error('Anthropic no está inicializado');
+    }
+
+    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+      ...conversationHistory,
+      { role: 'user', content: question },
+    ];
+
+    const response = await this.anthropic.messages.create({
+      model: this.model,
+      max_tokens: this.maxTokens,
+      temperature: this.temperature,
+      system: systemPrompt,
+      messages,
+    });
+
+    const firstContent = response.content[0];
+    if (firstContent.type === 'text') {
+      return firstContent.text;
+    }
+
+    return 'No pude generar una respuesta.';
+  }
+}
+```
+
+### 14.5 Endpoint POST /api/chat/ask
+
+```typescript
+// src/routes/chatRoutes.ts
+import { Router } from 'express';
+import { z } from 'zod';
+import { authMiddleware } from '../middlewares/authMiddleware';
+import { ChatAIService } from '../services/ChatAIService';
+
+const router = Router();
+const chatService = new ChatAIService();
+
+// Esquema de validación
+const askQuestionSchema = z.object({
+  question: z.string().min(1).max(500),
+  conversationHistory: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string(),
+      })
+    )
+    .optional()
+    .default([]),
+});
+
+/**
+ * POST /api/chat/ask
+ * Permite hacer preguntas a la IA sobre métricas del usuario
+ */
+router.post('/ask', authMiddleware, async (req, res) => {
+  try {
+    // Validar request
+    const { question, conversationHistory } = askQuestionSchema.parse(req.body);
+
+    // Obtener ID del usuario autenticado
+    const userId = req.user!.id;
+
+    // Llamar al servicio de IA
+    const answer = await chatService.askQuestion(userId, question, conversationHistory);
+
+    // Responder
+    res.json({
+      success: true,
+      answer,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Datos inválidos',
+        details: error.errors,
+      });
+    }
+
+    console.error('Error en /api/chat/ask:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al procesar la pregunta',
+    });
+  }
+});
+
+export default router;
+```
+
+```typescript
+// src/server.ts - Registrar rutas
+import chatRoutes from './routes/chatRoutes';
+
+app.use('/api/chat', chatRoutes);
+```
+
+### 14.6 Ejemplos de Análisis que Puede Hacer la IA
+
+Con los datos reales del producto, la IA puede:
+
+#### Ejemplo 1: Análisis de Tendencia
+**Pregunta del usuario**: "¿Cómo está el NPS de mi producto este mes?"
+
+**Datos leídos de la BD**:
+```json
+{
+  "productos": [{
+    "nombre": "Crédito de Vehículo",
+    "flujos": [{
+      "nombre": "Colocación",
+      "metricas": [{
+        "nombre": "NPS",
+        "unidad_medida": "nps",
+        "valores_recientes": [
+          { "periodo": "2025-12", "valor": 42 },
+          { "periodo": "2025-11", "valor": 38 },
+          { "periodo": "2025-10", "valor": 35 }
+        ]
+      }]
+    }]
+  }]
+}
+```
+
+**Respuesta de la IA**:
+```
+El NPS de tu producto "Crédito de Vehículo" en diciembre 2025 es de 42.
+
+📈 Buenas noticias: Ha mejorado significativamente en los últimos 3 meses:
+- Octubre: 35
+- Noviembre: 38
+- Diciembre: 42 (+4 puntos)
+
+Esto representa un crecimiento del 20% desde octubre. Tu NPS de 42 se considera "Bueno"
+según benchmarks de la industria (0-30: Malo, 30-70: Bueno, 70+: Excelente).
+```
+
+#### Ejemplo 2: Comparación entre Flujos
+**Pregunta**: "Compara el CSAT de mis flujos"
+
+**Respuesta de la IA**:
+```
+Comparación de CSAT entre tus flujos (diciembre 2025):
+
+🏆 Flujo "Legalización": 87%
+   - Por encima del promedio general (83.5%)
+   - Tendencia: Estable
+
+📊 Flujo "Colocación": 80%
+   - Ligeramente por debajo del promedio
+   - Tendencia: Mejorando (+3% vs mes anterior)
+
+Recomendación: El flujo de Legalización está funcionando muy bien. Considera
+replicar sus mejores prácticas en Colocación para subir ese 80% a niveles similares.
+```
+
+#### Ejemplo 3: Detección de Alertas
+**Pregunta**: "¿Hay alguna métrica que necesite atención?"
+
+**Respuesta de la IA**:
+```
+⚠️ He detectado 2 métricas que requieren atención:
+
+1. Tasa de Conversión (Flujo Colocación)
+   - Valor actual: 2.1%
+   - Mes anterior: 3.8%
+   - Cambio: -45% ⚠️
+   - Estado: Cayó significativamente
+
+2. Tiempo de Aprobación (Flujo Legalización)
+   - Valor actual: 12 días
+   - Meta esperada: < 7 días
+   - Estado: Por encima del target
+
+El resto de métricas están dentro de rangos normales.
+```
+
+#### Ejemplo 4: Resumen Ejecutivo
+**Pregunta**: "Dame un resumen del rendimiento de mi producto"
+
+**Respuesta de la IA**:
+```
+📊 Resumen Ejecutivo - Crédito de Vehículo (Diciembre 2025)
+
+Estado General: 🟢 Saludable
+
+Métricas Positivas:
+✅ NPS: 42 (+11% vs trimestre anterior)
+✅ CSAT: 83.5% (por encima del benchmark de 80%)
+✅ Aprobaciones: 245 solicitudes (+8%)
+
+Áreas de Mejora:
+⚠️ Tasa de Conversión: 2.1% (cayó desde 3.8%)
+⚠️ Tiempo de Aprobación: 12 días (meta: 7 días)
+
+Tendencia de 3 meses: 📈 Crecimiento sostenido
+Flujo destacado: "Legalización" (todas las métricas en verde)
+```
+
+### 14.7 Configuración Recomendada por Proveedor
+
+#### OpenAI GPT-4 Turbo
+```bash
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-proj-...
+AI_MODEL=gpt-4-turbo
+AI_MAX_TOKENS=1000
+AI_TEMPERATURE=0.7
+```
+
+**Ventajas**: Excelente comprensión de contexto, respuestas rápidas (1-3s)
+**Costo**: ~$0.01 por pregunta (con 1000 tokens)
+
+#### Anthropic Claude 3.5 Sonnet
+```bash
+AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+AI_MODEL=claude-3-5-sonnet-20241022
+AI_MAX_TOKENS=1000
+AI_TEMPERATURE=0.7
+```
+
+**Ventajas**: Muy preciso con datos estructurados, contexto largo (200K tokens)
+**Costo**: ~$0.015 por pregunta
+
+### 14.8 Optimizaciones y Rate Limiting
+
+```typescript
+// src/middlewares/aiRateLimitMiddleware.ts
+import rateLimit from 'express-rate-limit';
+import RedisStore from 'rate-limit-redis';
+import { redis } from '../lib/redis';
+
+// Limitar a 20 preguntas por hora por usuario
+export const aiRateLimiter = rateLimit({
+  store: new RedisStore({
+    client: redis,
+    prefix: 'rl:ai:',
+  }),
+  windowMs: 60 * 60 * 1000, // 1 hora
+  max: 20, // 20 requests
+  message: 'Has alcanzado el límite de preguntas por hora. Intenta más tarde.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Aplicar en routes
+router.post('/ask', authMiddleware, aiRateLimiter, async (req, res) => {
+  // ...
+});
+```
+
+**Caché de preguntas comunes**:
+```typescript
+// Antes de llamar a la IA, verificar caché
+const cacheKey = `chat:${userId}:${hashQuestion(question)}`;
+const cachedAnswer = await redis.get(cacheKey);
+
+if (cachedAnswer) {
+  return res.json({ success: true, answer: cachedAnswer, cached: true });
+}
+
+// Si no está en caché, llamar a IA y guardar
+const answer = await chatService.askQuestion(userId, question);
+await redis.setex(cacheKey, 3600, answer); // 1 hora
+```
+
+### 14.9 Seguridad y Privacidad
+
+✅ **Aislamiento de datos**: Cada usuario solo ve sus productos asignados
+✅ **No almacenar conversaciones**: Las conversaciones no se guardan en BD (opcional guardarlas)
+✅ **Rate limiting**: Máximo 20 preguntas/hora por usuario
+✅ **Validación de inputs**: Zod valida todas las entradas
+✅ **Autenticación requerida**: Solo usuarios autenticados pueden usar el chat
+✅ **Logs de auditoría**: Registrar uso del chat para análisis de costos
+
+```typescript
+// Opcional: Guardar historial de preguntas para auditoría
+await prisma.chat_logs.create({
+  data: {
+    usuario_id: userId,
+    pregunta: question,
+    respuesta: answer,
+    modelo_usado: this.model,
+    tokens_usados: response.usage?.total_tokens || 0,
+    created_at: new Date(),
+  },
+});
+```
