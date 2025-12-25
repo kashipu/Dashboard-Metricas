@@ -14,14 +14,23 @@ Este proyecto permite a las organizaciones:
 
 ## Características Principales
 
+### Core
 - Dashboard interactivo por producto
 - Gráficos de tendencias mensuales
 - Seguimiento de cumplimiento de targets
 - Comparación mes a mes
-- Exportación JSON y CSV
+- Exportación JSON y CSV para BI (Looker, Power BI, Tableau)
 - API REST completa
 - Interfaz responsive (mobile, tablet, desktop)
-- Autenticación segura (JWT)
+
+### Usuarios y Permisos
+- **Sistema de usuarios con 3 roles**: Admin, Responsable, Viewer
+- **Asignación de productos a responsables**: Cada producto tiene un responsable que lo gestiona
+- **"Mis Productos"**: Vista personalizada donde responsables ven solo sus productos asignados
+- **Autenticación segura (JWT)**: Login, refresh tokens, control de sesiones
+- **Auditoría completa**: Registro de quién crea/modifica cada valor mensual
+- **Filtros por responsable**: Buscar productos y métricas por responsable
+- **Permisos granulares**: Control de acceso basado en roles y ownership
 
 ## Documentación Completa
 
@@ -39,12 +48,15 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
    - Seguridad e integraciones
 
 2. **[DATABASE.md](./DATABASE.md)**
-   - Modelo de datos completo
-   - Diagrama Entidad-Relación
-   - Esquema de tablas SQL
+   - Modelo de datos completo con usuarios y asignaciones
+   - Diagrama Entidad-Relación actualizado
+   - Esquema de tablas SQL (usuarios, productos, flujos, métricas, valores)
+   - Tabla de asignaciones producto-usuario
+   - Auditoría de valores (created_by, updated_by)
    - Índices y optimizaciones
-   - Queries comunes
-   - Vistas y funciones
+   - Queries comunes con filtros por responsable
+   - Vistas con información de responsables
+   - RLS (Row Level Security)
    - Estrategias de backup
 
 3. **[BACKEND.md](./BACKEND.md)**
@@ -68,14 +80,33 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
 
 5. **[API.md](./API.md)**
    - Documentación completa de API REST
-   - Todos los endpoints documentados
-   - Ejemplos de request/response
+   - Endpoints de productos, flujos, métricas y valores
    - Autenticación y seguridad
    - Rate limiting
    - Endpoints de exportación BI
    - Ejemplos con cURL
 
-6. **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)**
+6. **[API_USUARIOS.md](./API_USUARIOS.md)** ⭐ NUEVO
+   - API de gestión de usuarios
+   - Asignación de responsables a productos
+   - Endpoint "Mis Productos" para responsables
+   - Filtros por responsable y departamento
+   - API de auditoría
+   - Estadísticas por usuario
+   - Notificaciones
+   - Ejemplos completos
+
+7. **[ROLES_Y_PERMISOS.md](./ROLES_Y_PERMISOS.md)** ⭐ NUEVO
+   - Sistema de roles (Admin, Responsable, Viewer)
+   - Matriz completa de permisos
+   - Flujos de asignación de productos
+   - Validaciones de seguridad (backend y frontend)
+   - Ejemplos de código de autorización
+   - Sistema de notificaciones
+   - Auditoría de acciones
+   - Mejores prácticas de seguridad
+
+8. **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)**
    - Plan de implementación detallado
    - 10 fases con tareas específicas
    - Cronograma estimado (45 días)
@@ -133,6 +164,53 @@ Producto (ej: E-commerce Web)
     ├── Métrica Experiencia: NPS
     └── Métrica Producto: Usuarios activos mensuales
 ```
+
+## Sistema de Usuarios y Responsables
+
+### Roles del Sistema
+
+**Admin (Administrador)**:
+- Gestiona todos los productos y usuarios
+- Asigna responsables a productos
+- Configura métricas y tipos
+- Acceso total al sistema
+
+**Responsable (Product Owner/Manager)**:
+- Gestiona SUS productos asignados
+- Crea/edita flujos y métricas de sus productos
+- Registra valores mensuales
+- Ve dashboard de sus productos
+- Puede ver otros productos en modo lectura
+
+**Viewer (Observador)**:
+- Solo lectura de todos los dashboards
+- Puede exportar reportes
+- No puede modificar nada
+
+### Flujo de Trabajo
+
+```
+1. Admin crea usuario "María" como Responsable
+2. Admin asigna producto "E-commerce Web" a María
+3. María recibe notificación por email
+4. María hace login y ve "Mis Productos"
+5. María puede:
+   - Ver dashboard de E-commerce Web
+   - Crear/editar flujos y métricas
+   - Registrar valores mensuales
+   - Exportar datos de su producto
+6. María NO puede:
+   - Editar productos de otros responsables
+   - Crear nuevos productos (solo Admin)
+   - Gestionar usuarios
+```
+
+### Filtros y Búsquedas
+
+- Filtrar productos por responsable
+- Filtrar por departamento del responsable
+- Ver "Mis Productos" (solo tus productos asignados)
+- Búsqueda global por nombre, código, responsable
 
 ## Tipos de Métricas
 
