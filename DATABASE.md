@@ -1084,34 +1084,499 @@ VALUES (
 );
 ```
 
-## 9. Backup y Mantenimiento
+## 9. Backup, Integridad y Recuperación de Datos
 
-### 9.1 Estrategia de Backup
+### 9.1 Backups Automáticos con Dokploy
 
-```bash
-# Backup completo diario
-pg_dump -h localhost -U postgres -d metrics_db \
-    -F c -b -v -f backup_$(date +%Y%m%d).backup
+**Configuración en Dokploy Dashboard**:
 
-# Backup solo de valores mensuales (tabla más grande)
-pg_dump -h localhost -U postgres -d metrics_db \
-    -t valores_mensuales \
-    -F c -b -v -f valores_backup_$(date +%Y%m%d).backup
+Dokploy gestiona backups automáticos de PostgreSQL:
+
+```yaml
+# Configuración en Dokploy
+Database: metrics-db
+Backup Schedule: Daily at 2:00 AM
+Retention: 7 days (configurable hasta 30 días)
+Storage: Local en VPS + opcional S3/Backblaze
+Compression: Enabled
 ```
 
-### 9.2 Mantenimiento
+**Características**:
+- ✅ Backups diarios automáticos
+- ✅ Compresión automática
+- ✅ Restauración con un click desde dashboard
+- ✅ Notificaciones por email si falla
+- ✅ Verificación de integridad automática
+
+**Restaurar desde Dokploy**:
+1. Ir a Database → metrics-db → Backups
+2. Seleccionar backup de la fecha deseada
+3. Click "Restore"
+4. Confirmar operación
+
+### 9.2 Backups Manuales Completos
+
+**Script de backup completo**:
+
+```bash
+#!/bin/bash
+# backup-complete.sh - Backup completo de la base de datos
+
+DATE=$(date +%Y%m%d_%H%M%S)
+BACKUP_DIR="/backups/metricas"
+DB_NAME="metrics_production"
+DB_USER="metrics_user"
+DB_HOST="localhost"
+
+# Crear directorio si no existe
+mkdir -p $BACKUP_DIR
+
+# Backup en formato custom (comprimido)
+pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME \
+    -F c \
+    -b \
+    -v \
+    --file="$BACKUP_DIR/full_backup_$DATE.backup"
+
+# Backup en formato SQL (legible)
+pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME \
+    -F p \
+    -b \
+    -v \
+    --file="$BACKUP_DIR/full_backup_$DATE.sql"
+
+# Comprimir SQL
+gzip "$BACKUP_DIR/full_backup_$DATE.sql"
+
+# Verificar integridad
+pg_restore --list "$BACKUP_DIR/full_backup_$DATE.backup" > /dev/null
+
+if [ $? -eq 0 ]; then
+    echo "✅ Backup exitoso: $DATE"
+    echo "📁 Archivos:"
+    echo "   - full_backup_$DATE.backup (para pg_restore)"
+    echo "   - full_backup_$DATE.sql.gz (SQL legible)"
+else
+    echo "❌ Error en backup: $DATE"
+    exit 1
+fi
+
+# Limpiar backups antiguos (mantener últimos 30 días)
+find $BACKUP_DIR -name "*.backup" -mtime +30 -delete
+find $BACKUP_DIR -name "*.sql.gz" -mtime +30 -delete
+
+echo "🧹 Backups antiguos limpiados"
+```
+
+**Ejecutar manualmente**:
+```bash
+chmod +x backup-complete.sh
+./backup-complete.sh
+```
+
+**Automatizar con cron**:
+```bash
+# Editar crontab
+crontab -e
+
+# Agregar línea (backup diario a las 3 AM)
+0 3 * * * /path/to/backup-complete.sh >> /var/log/metricas-backup.log 2>&1
+```
+
+### 9.3 Exportación Completa de Datos (Portable)
+
+**Exportar TODOS los datos en formato portable**:
+
+```bash
+#!/bin/bash
+# export-all-data.sh - Exportación completa en múltiples formatos
+
+DATE=$(date +%Y%m%d)
+EXPORT_DIR="/exports/metricas_$DATE"
+
+mkdir -p $EXPORT_DIR
+
+# 1. Backup PostgreSQL completo
+pg_dump -h localhost -U metrics_user -d metrics_production \
+    -F c -f "$EXPORT_DIR/database_full.backup"
+
+# 2. Exportar cada tabla a CSV (importable en Excel/otros DBs)
+psql -h localhost -U metrics_user -d metrics_production <<EOF
+\copy usuarios TO '$EXPORT_DIR/usuarios.csv' CSV HEADER;
+\copy productos TO '$EXPORT_DIR/productos.csv' CSV HEADER;
+\copy flujos TO '$EXPORT_DIR/flujos.csv' CSV HEADER;
+\copy metricas TO '$EXPORT_DIR/metricas.csv' CSV HEADER;
+\copy valores_mensuales TO '$EXPORT_DIR/valores_mensuales.csv' CSV HEADER;
+\copy tipos_metrica TO '$EXPORT_DIR/tipos_metrica.csv' CSV HEADER;
+\copy catalogo_metricas TO '$EXPORT_DIR/catalogo_metricas.csv' CSV HEADER;
+EOF
+
+# 3. Exportar schema completo (DDL)
+pg_dump -h localhost -U metrics_user -d metrics_production \
+    --schema-only \
+    -f "$EXPORT_DIR/schema_complete.sql"
+
+# 4. Crear JSON con toda la data
+psql -h localhost -U metrics_user -d metrics_production -t -c "
+SELECT json_build_object(
+    'export_date', NOW(),
+    'database', 'metrics_production',
+    'usuarios', (SELECT json_agg(u) FROM usuarios u),
+    'productos', (SELECT json_agg(p) FROM productos p),
+    'flujos', (SELECT json_agg(f) FROM flujos f),
+    'metricas', (SELECT json_agg(m) FROM metricas m),
+    'valores_mensuales', (SELECT json_agg(v) FROM valores_mensuales v)
+)
+" > "$EXPORT_DIR/complete_data.json"
+
+# 5. Crear README con metadata
+cat > "$EXPORT_DIR/README.txt" <<ENDREADME
+===========================================
+EXPORTACIÓN COMPLETA - Dashboard Métricas
+===========================================
+
+Fecha de exportación: $DATE
+Base de datos: metrics_production
+
+ARCHIVOS INCLUIDOS:
+-------------------
+1. database_full.backup   - Backup PostgreSQL (usar pg_restore)
+2. schema_complete.sql    - Schema completo (DDL)
+3. complete_data.json     - Todos los datos en JSON
+4. *.csv                  - Cada tabla en CSV (importable en Excel)
+
+RESTAURACIÓN:
+------------
+# Opción 1: Restaurar backup completo
+pg_restore -h localhost -U metrics_user -d metrics_production database_full.backup
+
+# Opción 2: Recrear desde schema + CSVs
+psql -h localhost -U metrics_user -d metrics_production -f schema_complete.sql
+# Luego importar CSVs con \copy
+
+INTEGRIDAD:
+----------
+Total de registros por tabla:
+ENDREADME
+
+# Agregar conteos de registros
+psql -h localhost -U metrics_user -d metrics_production -t -c "
+SELECT
+    'usuarios: ' || COUNT(*) FROM usuarios
+UNION ALL
+SELECT 'productos: ' || COUNT(*) FROM productos
+UNION ALL
+SELECT 'flujos: ' || COUNT(*) FROM flujos
+UNION ALL
+SELECT 'metricas: ' || COUNT(*) FROM metricas
+UNION ALL
+SELECT 'valores_mensuales: ' || COUNT(*) FROM valores_mensuales;
+" >> "$EXPORT_DIR/README.txt"
+
+# 6. Comprimir todo
+tar -czf "metricas_export_$DATE.tar.gz" -C /exports "metricas_$DATE"
+
+echo "✅ Exportación completa finalizada"
+echo "📦 Archivo: metricas_export_$DATE.tar.gz"
+echo "📁 Tamaño: $(du -h metricas_export_$DATE.tar.gz | cut -f1)"
+```
+
+### 9.4 Restauración de Backups
+
+**Restaurar backup completo**:
+
+```bash
+#!/bin/bash
+# restore-backup.sh - Restaurar desde backup
+
+BACKUP_FILE=$1
+
+if [ -z "$BACKUP_FILE" ]; then
+    echo "Uso: ./restore-backup.sh <archivo_backup>"
+    exit 1
+fi
+
+echo "⚠️  ADVERTENCIA: Esto sobrescribirá la base de datos actual"
+read -p "¿Continuar? (yes/no): " CONFIRM
+
+if [ "$CONFIRM" != "yes" ]; then
+    echo "Operación cancelada"
+    exit 0
+fi
+
+# Crear backup de seguridad antes de restaurar
+echo "📦 Creando backup de seguridad..."
+pg_dump -h localhost -U metrics_user -d metrics_production \
+    -F c -f "safety_backup_$(date +%Y%m%d_%H%M%S).backup"
+
+# Terminar conexiones activas
+echo "🔌 Cerrando conexiones activas..."
+psql -h localhost -U postgres -c "
+SELECT pg_terminate_backend(pg_stat_activity.pid)
+FROM pg_stat_activity
+WHERE pg_stat_activity.datname = 'metrics_production'
+  AND pid <> pg_backend_pid();
+"
+
+# Restaurar
+echo "♻️  Restaurando desde: $BACKUP_FILE"
+pg_restore -h localhost -U metrics_user \
+    -d metrics_production \
+    --clean \
+    --if-exists \
+    --verbose \
+    "$BACKUP_FILE"
+
+if [ $? -eq 0 ]; then
+    echo "✅ Restauración exitosa"
+
+    # Verificar integridad
+    echo "🔍 Verificando integridad..."
+    psql -h localhost -U metrics_user -d metrics_production -c "
+    SELECT
+        'usuarios: ' || COUNT(*) FROM usuarios
+    UNION ALL
+    SELECT 'productos: ' || COUNT(*) FROM productos
+    UNION ALL
+    SELECT 'valores_mensuales: ' || COUNT(*) FROM valores_mensuales;
+    "
+else
+    echo "❌ Error en restauración"
+    exit 1
+fi
+```
+
+### 9.5 Verificación de Integridad de Datos
+
+**Script de verificación periódica**:
 
 ```sql
--- Vacuum regular (ejecutar semanalmente)
+-- verify-integrity.sql
+-- Ejecutar semanalmente para verificar integridad
+
+-- 1. Verificar referencias huérfanas
+SELECT 'VERIFICACIÓN DE INTEGRIDAD' AS status, NOW() AS timestamp;
+
+-- Productos sin responsable válido
+SELECT
+    'Productos sin responsable válido' AS issue,
+    COUNT(*) AS count
+FROM productos p
+LEFT JOIN usuarios u ON u.id = p.responsable_id
+WHERE p.responsable_id IS NOT NULL AND u.id IS NULL;
+
+-- Métricas huérfanas (sin flujo)
+SELECT
+    'Métricas sin flujo válido' AS issue,
+    COUNT(*) AS count
+FROM metricas m
+LEFT JOIN flujos f ON f.id = m.flujo_id
+WHERE f.id IS NULL;
+
+-- Valores mensuales huérfanos
+SELECT
+    'Valores sin métrica válida' AS issue,
+    COUNT(*) AS count
+FROM valores_mensuales v
+LEFT JOIN metricas m ON m.id = v.metrica_id
+WHERE m.id IS NULL;
+
+-- 2. Verificar duplicados
+SELECT
+    'Valores duplicados (métrica + período)' AS issue,
+    COUNT(*) AS count
+FROM (
+    SELECT metrica_id, periodo, COUNT(*)
+    FROM valores_mensuales
+    GROUP BY metrica_id, periodo
+    HAVING COUNT(*) > 1
+) duplicados;
+
+-- 3. Verificar consistencia de datos
+SELECT
+    'Valores fuera de rango válido' AS issue,
+    COUNT(*) AS count
+FROM valores_mensuales v
+INNER JOIN metricas m ON m.id = v.metrica_id
+WHERE
+    (m.unidad_medida = 'porcentaje' AND (v.valor < 0 OR v.valor > 100))
+    OR (m.codigo LIKE '%nps%' AND (v.valor < -100 OR v.valor > 100));
+
+-- 4. Resumen de registros
+SELECT
+    'Total de registros' AS summary,
+    json_build_object(
+        'usuarios', (SELECT COUNT(*) FROM usuarios WHERE activo = true),
+        'productos', (SELECT COUNT(*) FROM productos WHERE activo = true),
+        'flujos', (SELECT COUNT(*) FROM flujos WHERE activo = true),
+        'metricas', (SELECT COUNT(*) FROM metricas WHERE activo = true),
+        'valores_mensuales', (SELECT COUNT(*) FROM valores_mensuales)
+    ) AS counts;
+```
+
+**Ejecutar verificación**:
+```bash
+psql -h localhost -U metrics_user -d metrics_production \
+    -f verify-integrity.sql \
+    > integrity_check_$(date +%Y%m%d).txt
+```
+
+### 9.6 Backup Remoto (Off-site)
+
+**Sincronizar backups a almacenamiento externo**:
+
+```bash
+#!/bin/bash
+# sync-to-remote.sh - Sincronizar backups a S3/Backblaze
+
+BACKUP_DIR="/backups/metricas"
+REMOTE_BUCKET="s3://empresa-metricas-backups"
+
+# Instalar AWS CLI o rclone
+# apt-get install awscli
+# o
+# apt-get install rclone
+
+# Opción 1: Sync a AWS S3
+aws s3 sync $BACKUP_DIR $REMOTE_BUCKET \
+    --storage-class STANDARD_IA \
+    --exclude "*" \
+    --include "*.backup" \
+    --include "*.sql.gz"
+
+# Opción 2: Sync a Backblaze B2 (más económico)
+rclone sync $BACKUP_DIR remote:metricas-backups \
+    --include "*.backup" \
+    --include "*.sql.gz" \
+    --progress
+
+echo "✅ Backups sincronizados a almacenamiento remoto"
+```
+
+**Configurar como tarea automática**:
+```bash
+# crontab -e
+0 4 * * * /path/to/sync-to-remote.sh >> /var/log/remote-sync.log 2>&1
+```
+
+### 9.7 Política de Retención Recomendada
+
+```yaml
+Backups Diarios (Dokploy):
+  - Retención: 7 días
+  - Frecuencia: Cada día a las 2 AM
+  - Almacenamiento: Local en VPS
+
+Backups Semanales:
+  - Retención: 4 semanas
+  - Frecuencia: Domingos a las 3 AM
+  - Almacenamiento: Local + S3/Backblaze
+
+Backups Mensuales:
+  - Retención: 12 meses
+  - Frecuencia: Primer día del mes
+  - Almacenamiento: S3/Backblaze (archive)
+
+Exportaciones Completas:
+  - Retención: Indefinida
+  - Frecuencia: Trimestral
+  - Almacenamiento: S3 Glacier / Backblaze Archive
+  - Formato: .tar.gz con CSV + JSON + SQL
+```
+
+### 9.8 Plan de Recuperación ante Desastres
+
+**Escenarios y procedimientos**:
+
+**Escenario 1: Pérdida de datos recientes (< 24 horas)**
+```bash
+# Restaurar desde último backup de Dokploy
+1. Acceder a Dokploy Dashboard
+2. Database → metrics-db → Backups
+3. Restaurar último backup (automático de 2 AM)
+4. Verificar datos
+5. Tiempo estimado de recuperación: 5-10 minutos
+```
+
+**Escenario 2: Corrupción de base de datos**
+```bash
+# Restaurar desde backup manual verificado
+1. Detener aplicación
+2. Ejecutar restore-backup.sh con último backup válido
+3. Verificar integridad con verify-integrity.sql
+4. Reiniciar aplicación
+5. Tiempo estimado: 15-30 minutos
+```
+
+**Escenario 3: Pérdida total del VPS**
+```bash
+# Recuperación desde backups remotos
+1. Provisionar nuevo VPS
+2. Instalar Dokploy
+3. Crear nueva base de datos PostgreSQL
+4. Descargar backup más reciente desde S3/Backblaze
+5. Restaurar con pg_restore
+6. Configurar aplicaciones backend y frontend
+7. Tiempo estimado: 2-4 horas
+```
+
+**Contactos de emergencia**:
+```
+# Documentar en lugar seguro
+- Admin Sistema: [email/teléfono]
+- Proveedor VPS: [soporte]
+- Credenciales S3: [ubicación segura]
+- Procedimientos: [wiki/documentación]
+```
+
+### 9.9 Mantenimiento Regular
+
+```sql
+-- Ejecutar semanalmente
 VACUUM ANALYZE valores_mensuales;
 VACUUM ANALYZE productos;
+VACUUM ANALYZE metricas;
 
--- Reindexar tablas grandes
+-- Reindexar tablas grandes (mensualmente)
 REINDEX TABLE valores_mensuales;
+REINDEX INDEX idx_valores_metrica_periodo;
 
--- Limpiar datos antiguos (si aplica)
+-- Limpiar datos de prueba/temporales (si aplica)
 DELETE FROM valores_mensuales
-WHERE periodo < DATE_TRUNC('month', CURRENT_DATE - INTERVAL '5 years');
+WHERE observaciones LIKE '%TEST%' OR observaciones LIKE '%PRUEBA%';
+
+-- Actualizar estadísticas
+ANALYZE;
+```
+
+### 9.10 Checklist de Seguridad de Datos
+
+```markdown
+✅ Backups Configurados
+  - [ ] Dokploy backup automático habilitado
+  - [ ] Script de backup manual probado
+  - [ ] Backup remoto configurado (S3/Backblaze)
+  - [ ] Cron jobs funcionando
+
+✅ Integridad
+  - [ ] Verificación de integridad semanal
+  - [ ] Constraints de FK activos
+  - [ ] Validaciones en aplicación
+
+✅ Recuperación
+  - [ ] Proceso de restauración documentado
+  - [ ] Restauración probada al menos una vez
+  - [ ] Tiempos de recuperación conocidos
+
+✅ Monitoreo
+  - [ ] Alertas de fallos de backup
+  - [ ] Monitoreo de espacio en disco
+  - [ ] Logs de backup revisados regularmente
+
+✅ Acceso
+  - [ ] Credenciales de backup en lugar seguro
+  - [ ] Solo personal autorizado tiene acceso
+  - [ ] Backups encriptados (si contienen datos sensibles)
 ```
 
 ## 10. Consideraciones Futuras

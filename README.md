@@ -71,10 +71,16 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
    - Tabla de asignaciones producto-usuario
    - Auditoría de valores (created_by, updated_by)
    - Índices y optimizaciones
-   - Queries comunes con filtros por responsable
-   - Vistas con información de responsables
+   - Queries comunes con filtros por diseñador
+   - Vistas con información de diseñadores
    - RLS (Row Level Security)
-   - Estrategias de backup
+   - **Backups e Integridad de Datos**: ⭐
+     - Backups automáticos con Dokploy
+     - Scripts de backup manual y exportación completa
+     - Restauración y recuperación ante desastres
+     - Verificación de integridad
+     - Backup remoto (S3/Backblaze)
+     - Políticas de retención
 
 3. **[BACKEND.md](./BACKEND.md)**
    - Arquitectura del backend
