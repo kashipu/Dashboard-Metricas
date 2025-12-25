@@ -10,7 +10,7 @@ Aplicación web moderna construida con Next.js 14+, React y TypeScript. Proporci
 - **Framework**: Next.js 14+ (App Router)
 - **React**: 18+
 - **TypeScript**: 5+
-- **Lenguaje de estilos**: TailwindCSS 3+
+- **Lenguaje de estilos**: TailwindCSS 4 (nueva versión con mejor rendimiento)
 
 ### 2.2 UI y Componentes
 - **Component Library**: Shadcn/ui
@@ -858,3 +858,472 @@ vercel --prod
 8. **Performance monitoring**: Core Web Vitals
 9. **SEO**: Metadata en cada página
 10. **Code splitting**: Componentes lazy cuando sea apropiado
+
+## 17. Chat con IA - Asistente de Métricas
+
+### 17.1 Descripción
+
+Botón flotante con chat inteligente que permite a los diseñadores hacer preguntas en lenguaje natural sobre las métricas de sus productos.
+
+**Características**:
+- 💬 Chat contextual con IA (OpenAI, Anthropic Claude, etc.)
+- 📊 Responde preguntas sobre tendencias, comparaciones, insights
+- 🎯 Solo tiene acceso a datos del producto del usuario
+- 🔒 Respeta permisos (diseñador solo ve sus productos)
+- 📱 Botón flotante responsive
+- 💾 Historial de conversación
+
+### 17.2 Casos de Uso
+
+**Preguntas que puede responder**:
+```
+"¿Cómo está el NPS de mi producto este mes?"
+"Compara la tasa de conversión de los últimos 3 meses"
+"¿Qué métricas bajaron en el último mes?"
+"Dame un resumen del flujo de Colocación"
+"¿Cuál es el promedio del CSAT en el último trimestre?"
+"¿Qué flujo tiene mejor rendimiento?"
+"Necesito un insight sobre la tendencia de aprobaciones"
+```
+
+### 17.3 Arquitectura
+
+```
+┌─────────────────────────────────────┐
+│  Frontend (Next.js + TailwindCSS 4) │
+│                                     │
+│  ┌───────────────────────────────┐ │
+│  │  FloatingChatButton.tsx       │ │
+│  │  (botón flotante)             │ │
+│  └─────────────┬─────────────────┘ │
+│                │                   │
+│  ┌─────────────▼─────────────────┐ │
+│  │  ChatPanel.tsx                │ │
+│  │  (panel de chat deslizable)   │ │
+│  └─────────────┬─────────────────┘ │
+│                │                   │
+│  ┌─────────────▼─────────────────┐ │
+│  │  useChatAI() hook             │ │
+│  │  (lógica de estado)           │ │
+│  └─────────────┬─────────────────┘ │
+└────────────────┼───────────────────┘
+                 │ API Request
+                 ▼
+┌─────────────────────────────────────┐
+│  Backend API                        │
+│                                     │
+│  POST /api/chat/ask                 │
+│  - Autenticación JWT               │
+│  - Obtiene productos del usuario   │
+│  - Construye contexto con métricas │
+│  - Llama a LLM (OpenAI/Claude)     │
+│  - Retorna respuesta               │
+└─────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────┐
+│  LLM API (OpenAI, Claude, etc.)     │
+│  - Procesa pregunta + contexto      │
+│  - Genera respuesta natural         │
+└─────────────────────────────────────┘
+```
+
+### 17.4 Implementación Frontend
+
+**Instalación de dependencias**:
+```bash
+npm install ai @ai-sdk/openai
+# o
+npm install @anthropic-ai/sdk
+```
+
+**Componente del botón flotante**:
+
+```tsx
+// src/components/chat/FloatingChatButton.tsx
+'use client';
+
+import { MessageCircle, X } from 'lucide-react';
+import { useState } from 'react';
+import { ChatPanel } from './ChatPanel';
+
+export function FloatingChatButton() {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <>
+      {/* Botón flotante */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-transform hover:scale-110 hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300"
+        aria-label={isOpen ? 'Cerrar chat' : 'Abrir chat con IA'}
+      >
+        {isOpen ? (
+          <X className="h-6 w-6" />
+        ) : (
+          <MessageCircle className="h-6 w-6" />
+        )}
+      </button>
+
+      {/* Panel de chat deslizable */}
+      {isOpen && <ChatPanel onClose={() => setIsOpen(false)} />}
+    </>
+  );
+}
+```
+
+**Panel de chat**:
+
+```tsx
+// src/components/chat/ChatPanel.tsx
+'use client';
+
+import { useState } from 'react';
+import { Send, Loader2 } from 'lucide-react';
+import { useChatAI } from '@/hooks/useChatAI';
+
+interface ChatPanelProps {
+  onClose: () => void;
+}
+
+export function ChatPanel({ onClose }: ChatPanelProps) {
+  const [input, setInput] = useState('');
+  const { messages, sendMessage, isLoading } = useChatAI();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+
+    await sendMessage(input);
+    setInput('');
+  };
+
+  return (
+    <div className="fixed bottom-24 right-6 z-40 flex h-[600px] w-[400px] flex-col rounded-lg bg-white shadow-2xl">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-white">
+        <div className="flex items-center gap-2">
+          <div className="h-2 w-2 rounded-full bg-green-400"></div>
+          <h3 className="font-semibold">Asistente de Métricas</h3>
+        </div>
+        <button
+          onClick={onClose}
+          className="rounded-full p-1 hover:bg-white/20"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 && (
+          <div className="text-center text-gray-500 mt-8">
+            <MessageCircle className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+            <p className="text-sm">Pregúntame sobre tus métricas</p>
+            <div className="mt-4 space-y-2 text-xs text-left">
+              <p className="bg-gray-50 p-2 rounded">
+                💡 "¿Cómo está el NPS este mes?"
+              </p>
+              <p className="bg-gray-50 p-2 rounded">
+                💡 "Compara conversión últimos 3 meses"
+              </p>
+            </div>
+          </div>
+        )}
+
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex ${
+              message.role === 'user' ? 'justify-end' : 'justify-start'
+            }`}
+          >
+            <div
+              className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                message.role === 'user'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-900'
+              }`}
+            >
+              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              <span className="text-xs opacity-70">
+                {message.timestamp.toLocaleTimeString('es-ES', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            </div>
+          </div>
+        ))}
+
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-gray-100 rounded-lg px-4 py-2">
+              <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input */}
+      <form onSubmit={handleSubmit} className="border-t p-4">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Escribe tu pregunta..."
+            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            disabled={isLoading}
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !input.trim()}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 disabled:bg-gray-300"
+          >
+            <Send className="h-5 w-5" />
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+```
+
+**Custom Hook para el chat**:
+
+```tsx
+// src/hooks/useChatAI.ts
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+export function useChatAI() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const sendMessage = async (content: string) => {
+    // Agregar mensaje del usuario
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setIsLoading(true);
+
+    try {
+      // Llamar al backend
+      const response = await axios.post('/api/chat/ask', {
+        question: content,
+        conversationHistory: messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      });
+
+      // Agregar respuesta de la IA
+      const aiMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: response.data.answer,
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+    } catch (error) {
+      console.error('Error al enviar mensaje:', error);
+
+      // Mensaje de error
+      const errorMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: 'Lo siento, ocurrió un error. Por favor intenta de nuevo.',
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const clearHistory = () => {
+    setMessages([]);
+  };
+
+  return {
+    messages,
+    sendMessage,
+    isLoading,
+    clearHistory,
+  };
+}
+```
+
+### 17.5 Configuración de TailwindCSS 4
+
+**Instalar TailwindCSS 4**:
+
+```bash
+npm install tailwindcss@next @tailwindcss/postcss@next
+```
+
+**Configuración `tailwind.config.ts`**:
+
+```ts
+import type { Config } from 'tailwindcss';
+
+const config: Config = {
+  content: [
+    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        // ... más colores de shadcn
+      },
+      animation: {
+        'slide-in-right': 'slide-in-right 0.3s ease-out',
+        'fade-in': 'fade-in 0.2s ease-in',
+      },
+      keyframes: {
+        'slide-in-right': {
+          '0%': { transform: 'translateX(100%)' },
+          '100%': { transform: 'translateX(0)' },
+        },
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+      },
+    },
+  },
+  plugins: [require('tailwindcss-animate')],
+};
+
+export default config;
+```
+
+**`postcss.config.js`**:
+
+```js
+module.exports = {
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+};
+```
+
+**`app/globals.css`** (con Tailwind 4):
+
+```css
+@import 'tailwindcss';
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    /* ... más variables */
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    /* ... más variables dark mode */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+```
+
+### 17.6 Agregar al Layout Principal
+
+```tsx
+// src/app/(dashboard)/layout.tsx
+import { FloatingChatButton } from '@/components/chat/FloatingChatButton';
+
+export default function DashboardLayout({ children }) {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Navbar />
+      <div className="flex">
+        <Sidebar />
+        <main className="flex-1 p-6">{children}</main>
+      </div>
+
+      {/* Chat flotante disponible en todo el dashboard */}
+      <FloatingChatButton />
+    </div>
+  );
+}
+```
+
+### 17.7 Ventajas del Chat con IA
+
+✅ **Acceso rápido a insights**: Sin navegar por múltiples dashboards
+✅ **Lenguaje natural**: No necesita saber SQL o filtros complejos
+✅ **Contextual**: Solo ve datos de sus productos asignados
+✅ **Ahorro de tiempo**: Respuestas inmediatas a preguntas comunes
+✅ **Detección de tendencias**: La IA puede identificar patrones
+✅ **Disponible 24/7**: Siempre disponible para consultas
+
+### 17.8 Limitaciones y Consideraciones
+
+⚠️ **Costos de API**: Cada pregunta consume tokens del LLM
+⚠️ **Rate limiting**: Implementar límites por usuario
+⚠️ **Privacidad**: Solo enviar datos del usuario autenticado
+⚠️ **Precisión**: La IA puede malinterpretar, siempre mostrar fuentes
+⚠️ **Latencia**: Respuestas pueden tomar 2-5 segundos
+
+### 17.9 Optimizaciones
+
+```typescript
+// Caché de respuestas comunes
+const cacheKey = `chat:${userId}:${questionHash}`;
+const cachedResponse = await redis.get(cacheKey);
+
+if (cachedResponse) {
+  return cachedResponse;
+}
+
+// Streaming de respuestas (para respuestas largas)
+const stream = await openai.chat.completions.create({
+  model: 'gpt-4-turbo',
+  messages: [...],
+  stream: true,
+});
+
+for await (const chunk of stream) {
+  // Enviar chunks al frontend con SSE
+}
+```
