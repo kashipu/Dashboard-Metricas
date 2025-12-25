@@ -8,41 +8,53 @@ Sistema de roles y permisos basado en RBAC (Role-Based Access Control) que defin
 
 ### 2.1 Admin (Administrador)
 
-**Descripción**: Administrador total del sistema con acceso completo.
+**Descripción**: Administrador total del sistema con acceso completo. Además de gestionar el sistema, puede tener productos asignados y agregar datos como diseñador.
 
-**Permisos**:
+**Permisos Administrativos**:
 - ✅ Ver todos los productos
-- ✅ Crear/editar/eliminar cualquier producto
-- ✅ Asignar responsables a productos
-- ✅ Ver todas las métricas
-- ✅ Crear/editar/eliminar métricas de cualquier producto
-- ✅ Registrar/editar valores de cualquier métrica
+- ✅ **Crear productos y flujos**
+- ✅ **Crear y gestionar diseñadores** (usuarios)
+- ✅ Asignar diseñadores a productos
+- ✅ Editar/eliminar cualquier producto o flujo
 - ✅ Gestionar usuarios (crear, editar, desactivar)
 - ✅ Cambiar roles de usuarios
-- ✅ Ver logs y auditoría
-- ✅ Configurar tipos de métricas
-- ✅ Exportar datos de cualquier producto
+- ✅ Ver logs y auditoría completos
+- ✅ Configurar tipos de métricas y catálogo
 - ✅ Acceder a configuración global
 
+**Permisos de Datos**:
+- ✅ **Tener productos asignados** (como diseñador)
+- ✅ **CRUD completo de métricas**: Crear/Leer/Actualizar/Eliminar
+- ✅ **CRUD completo de valores mensuales** que él mismo ingresó
+- ✅ Registrar/editar/eliminar valores de cualquier métrica (incluso de otros usuarios)
+- ✅ Ver dashboard de todos los productos
+- ✅ Exportar datos de cualquier producto
+
 **Casos de Uso**:
-- Personal de TI
-- Gerente de Producto (nivel ejecutivo)
-- Data Engineering
+- Gerente de Producto que también gestiona productos específicos
+- Personal de TI que administra el sistema
+- Data Engineering con acceso total
 
 ### 2.2 Diseñador
 
-**Descripción**: Usuario encargado de diseñar y dar seguimiento a uno o más productos. Puede gestionar completamente sus productos asignados, agregando métricas mes a mes.
+**Descripción**: Usuario encargado de diseñar y dar seguimiento a uno o más productos asignados. Tiene **CRUD completo** sobre métricas y valores que agrega mediante formularios mes a mes.
 
-**Permisos**:
+**Permisos sobre Sus Productos**:
 - ✅ Ver **sus productos y flujos** asignados
 - ✅ Editar información de **sus productos**
-- ✅ Ver/crear/editar flujos de **sus productos**
-- ✅ Ver/crear/editar métricas de **sus productos**
-- ✅ Registrar valores mensuales de **sus productos**
-- ✅ Editar valores que ellos mismos registraron
+- ✅ **Crear/editar/eliminar flujos** de sus productos
+- ✅ **Agregar métricas mediante formularios** (registro mensual)
+- ✅ **CRUD completo de métricas**: Crear/Leer/Actualizar/Eliminar métricas de sus productos
+- ✅ **CRUD completo de valores mensuales**: Crear/Leer/Actualizar/Eliminar valores que ingresaron
 - ✅ Ver dashboard de **sus productos** (Vista Completa y Vista Detallada por Flujo)
 - ✅ Exportar datos de **sus productos**
+
+**Permisos sobre Otros Productos**:
 - ✅ Ver otros productos (solo lectura)
+- ❌ No puede modificar productos de otros diseñadores
+
+**Restricciones**:
+- ❌ No puede crear productos (solo Admin)
 - ❌ No puede asignar diseñadores
 - ❌ No puede gestionar usuarios
 - ❌ No puede ver logs de auditoría completos
@@ -78,42 +90,47 @@ Sistema de roles y permisos basado en RBAC (Role-Based Access Control) que defin
 
 | Acción | Admin | Diseñador | Viewer |
 |--------|-------|-----------|--------|
-| **USUARIOS** |
+| **USUARIOS Y DISEÑADORES** |
 | Ver usuarios | ✅ | ❌ | ❌ |
-| Crear usuarios | ✅ | ❌ | ❌ |
+| **Crear diseñadores** | ✅ | ❌ | ❌ |
 | Editar usuarios | ✅ | ❌ (solo perfil propio) | ❌ (solo perfil propio) |
 | Cambiar roles | ✅ | ❌ | ❌ |
 | Desactivar usuarios | ✅ | ❌ | ❌ |
 | **PRODUCTOS** |
 | Ver todos los productos | ✅ | ✅ (lectura) | ✅ |
 | Ver solo sus productos | ✅ | ✅ | N/A |
-| Crear productos | ✅ | ❌ | ❌ |
+| **Crear productos** | ✅ | ❌ | ❌ |
+| **Tener productos asignados** | ✅ | ✅ | N/A |
 | Editar cualquier producto | ✅ | ❌ | ❌ |
 | Editar sus productos | ✅ | ✅ | ❌ |
-| Eliminar productos | ✅ | ❌ | ❌ |
-| Asignar responsables | ✅ | ❌ | ❌ |
+| Eliminar cualquier producto | ✅ | ❌ | ❌ |
+| Eliminar sus productos | ✅ | ✅ | ❌ |
+| Asignar diseñadores a productos | ✅ | ❌ | ❌ |
 | **FLUJOS** |
 | Ver flujos | ✅ | ✅ | ✅ |
-| Crear flujos (cualquier producto) | ✅ | ❌ | ❌ |
-| Crear flujos (sus productos) | ✅ | ✅ | ❌ |
+| **Crear flujos** (cualquier producto) | ✅ | ❌ | ❌ |
+| **Crear flujos** (sus productos) | ✅ | ✅ | ❌ |
 | Editar flujos (cualquier producto) | ✅ | ❌ | ❌ |
 | Editar flujos (sus productos) | ✅ | ✅ | ❌ |
-| Eliminar flujos | ✅ | ✅ (sus productos) | ❌ |
+| Eliminar flujos (cualquier producto) | ✅ | ❌ | ❌ |
+| Eliminar flujos (sus productos) | ✅ | ✅ | ❌ |
 | **MÉTRICAS** |
 | Ver métricas | ✅ | ✅ | ✅ |
 | Crear métricas (cualquier producto) | ✅ | ❌ | ❌ |
-| Crear métricas (sus productos) | ✅ | ✅ | ❌ |
+| **Crear métricas vía formulario** (sus productos) | ✅ | ✅ | ❌ |
 | Editar métricas (cualquier producto) | ✅ | ❌ | ❌ |
 | Editar métricas (sus productos) | ✅ | ✅ | ❌ |
-| Eliminar métricas | ✅ | ✅ (sus productos) | ❌ |
-| Configurar tipos de métricas | ✅ | ❌ | ❌ |
-| **VALORES MENSUALES** |
+| Eliminar métricas (cualquier producto) | ✅ | ❌ | ❌ |
+| Eliminar métricas (sus productos) | ✅ | ✅ | ❌ |
+| Configurar tipos y catálogo de métricas | ✅ | ❌ | ❌ |
+| **VALORES MENSUALES (CRUD COMPLETO)** |
 | Ver valores | ✅ | ✅ | ✅ |
-| Registrar valores (cualquier producto) | ✅ | ❌ | ❌ |
-| Registrar valores (sus productos) | ✅ | ✅ | ❌ |
-| Editar valores (cualquier producto) | ✅ | ❌ | ❌ |
-| Editar valores (sus productos) | ✅ | ✅ | ❌ |
-| Eliminar valores | ✅ | ✅ (sus registros) | ❌ |
+| **Crear** valores (cualquier producto) | ✅ | ❌ | ❌ |
+| **Crear** valores (sus productos) | ✅ | ✅ | ❌ |
+| **Editar** valores (cualquier producto) | ✅ | ❌ | ❌ |
+| **Editar** valores (sus productos) | ✅ | ✅ | ❌ |
+| **Eliminar** valores (cualquier producto) | ✅ | ❌ | ❌ |
+| **Eliminar** valores (sus productos) | ✅ | ✅ | ❌ |
 | **EXPORTACIÓN** |
 | Exportar datos (cualquier producto) | ✅ | ❌ | ✅ (lectura) |
 | Exportar datos (sus productos) | ✅ | ✅ | ✅ |

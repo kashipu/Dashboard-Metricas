@@ -204,18 +204,22 @@ Mis Productos → Vista Producto Completo → Vista Flujo Detallado
 ### Roles del Sistema
 
 **Admin (Administrador)**:
-- Gestiona todos los productos y usuarios
+- **Crea productos, flujos y diseñadores** (gestión completa del sistema)
+- **Puede tener productos asignados** (actuar como diseñador)
 - Asigna diseñadores a productos y flujos
-- Configura métricas y tipos
-- Acceso total al sistema
+- CRUD completo de métricas y valores mensuales (propios y de otros)
+- Configura catálogo de métricas y tipos
+- Acceso total y auditoría completa
 - Ve todos los productos
 
 **Diseñador**:
 - Gestiona SUS productos y flujos asignados
-- Crea/edita flujos y métricas de sus productos
-- Registra valores mensuales (mes a mes, no diario)
+- **CRUD completo**: Crear/Editar/Eliminar flujos y métricas de sus productos
+- **Agrega métricas mediante formularios** (registro mensual)
+- **CRUD completo de valores mensuales** que ingresó
 - Ve vista completa de producto y vista detallada de flujos
 - Puede ver otros productos en modo lectura
+- NO puede crear productos (solo Admin)
 
 **Viewer (Observador)**:
 - Solo lectura de todos los dashboards
@@ -226,25 +230,27 @@ Mis Productos → Vista Producto Completo → Vista Flujo Detallado
 
 ```
 1. Admin crea usuario "María" como Diseñador
-2. Admin asigna producto "Crédito de Vehículo" (con flujos Colocación y Legalización) a María
-3. María recibe notificación por email
-4. María hace login y ve "Mis Productos"
-5. María selecciona "Crédito de Vehículo"
-6. María ve Vista de Producto Completo:
+2. Admin crea producto "Crédito de Vehículo" y sus flujos (Colocación y Legalización)
+3. Admin asigna producto a María
+4. María recibe notificación por email
+5. María hace login y ve "Mis Productos"
+6. María selecciona "Crédito de Vehículo"
+7. María ve Vista de Producto Completo:
    - Flujo Colocación con sus 5 métricas principales
    - Flujo Legalización con sus 5 métricas principales
    - Mini-gráficas de últimos 6 meses
-7. María hace click en "Ver Detalle" del flujo Colocación
-8. María ve Vista de Flujo Detallado:
-   - Todas las métricas del flujo
-   - Gráficas de 12 meses por métrica
-   - Análisis y comparaciones
-9. María registra valores del mes de Marzo 2025
-10. Dashboard se actualiza automáticamente
+8. María hace click en "Ver Detalle" del flujo Colocación
+9. María ve Vista de Flujo Detallado con todas las métricas
+10. María agrega métricas mediante formulario:
+    - Selecciona métrica del catálogo (ej: Tasa de Aprobación)
+    - Ingresa valor del mes (ej: 78.5%)
+    - Sistema valida rango automáticamente
+11. María puede editar/eliminar valores que ingresó (CRUD completo)
+12. Dashboard se actualiza automáticamente
 
 María NO puede:
-   - Editar productos de otros diseñadores
    - Crear nuevos productos (solo Admin)
+   - Editar productos de otros diseñadores
    - Gestionar usuarios
 ```
 
