@@ -29,29 +29,30 @@ Sistema de roles y permisos basado en RBAC (Role-Based Access Control) que defin
 - Gerente de Producto (nivel ejecutivo)
 - Data Engineering
 
-### 2.2 Responsable (Product Owner/Manager)
+### 2.2 Diseñador
 
-**Descripción**: Usuario responsable de uno o más productos. Puede gestionar completamente sus productos asignados.
+**Descripción**: Usuario encargado de diseñar y dar seguimiento a uno o más productos. Puede gestionar completamente sus productos asignados, agregando métricas mes a mes.
 
 **Permisos**:
-- ✅ Ver **sus productos** asignados
+- ✅ Ver **sus productos y flujos** asignados
 - ✅ Editar información de **sus productos**
 - ✅ Ver/crear/editar flujos de **sus productos**
 - ✅ Ver/crear/editar métricas de **sus productos**
 - ✅ Registrar valores mensuales de **sus productos**
 - ✅ Editar valores que ellos mismos registraron
-- ✅ Ver dashboard de **sus productos**
+- ✅ Ver dashboard de **sus productos** (Vista Completa y Vista Detallada por Flujo)
 - ✅ Exportar datos de **sus productos**
 - ✅ Ver otros productos (solo lectura)
-- ❌ No puede asignar responsables
+- ❌ No puede asignar diseñadores
 - ❌ No puede gestionar usuarios
 - ❌ No puede ver logs de auditoría completos
 
 **Casos de Uso**:
-- Product Managers
-- Product Owners
-- Team Leads
-- Growth Managers
+- Diseñadores de Producto
+- Product Designers
+- UX Designers
+- Service Designers
+- Responsables de Producto
 
 ### 2.3 Viewer (Observador)
 
@@ -75,8 +76,8 @@ Sistema de roles y permisos basado en RBAC (Role-Based Access Control) que defin
 
 ## 3. Matriz de Permisos
 
-| Acción | Admin | Responsable | Viewer |
-|--------|-------|-------------|--------|
+| Acción | Admin | Diseñador | Viewer |
+|--------|-------|-----------|--------|
 | **USUARIOS** |
 | Ver usuarios | ✅ | ❌ | ❌ |
 | Crear usuarios | ✅ | ❌ | ❌ |
@@ -121,21 +122,21 @@ Sistema de roles y permisos basado en RBAC (Role-Based Access Control) que defin
 | Ver configuración global | ✅ | ❌ | ❌ |
 | Modificar configuración | ✅ | ❌ | ❌ |
 
-## 4. Asignación de Productos
+## 4. Asignación de Productos y Flujos
 
-### 4.1 Responsable Principal
+### 4.1 Diseñador Principal
 
-Cada producto tiene **un responsable principal** asignado:
+Cada producto (y sus flujos) tiene **un diseñador principal** asignado:
 
 ```sql
 -- Campo en tabla productos
-responsable_id INTEGER REFERENCES usuarios(id)
+responsable_id INTEGER REFERENCES usuarios(id) -- FK al diseñador asignado
 ```
 
 **Beneficios**:
 - Claridad de ownership
-- Punto de contacto único
-- Responsabilidad clara
+- Punto de contacto único para el producto
+- Responsabilidad clara del diseño y seguimiento de métricas
 
 ### 4.2 Colaboradores Adicionales (Futuro)
 
@@ -154,7 +155,7 @@ VALUES (1, 5, TRUE, TRUE);
 
 ## 5. Flujo de Asignación
 
-### 5.1 Admin Asigna Responsable
+### 5.1 Admin Asigna Diseñador a Producto y Flujos
 
 ```
 ┌──────────┐
@@ -165,32 +166,32 @@ VALUES (1, 5, TRUE, TRUE);
      ▼
 ┌─────────────────────────────────┐
 │  Lista de Productos             │
-│  [E-commerce] [Editar]          │
+│  [Crédito Vehículo] [Editar]    │
 └────┬────────────────────────────┘
      │ 2. Click en "Editar"
      ▼
 ┌─────────────────────────────────┐
-│  Editar Producto: E-commerce    │
+│  Editar Producto: Crédito Veh.  │
 │                                 │
-│  Responsable: [María G. ▼]     │
-│  (dropdown con usuarios)        │
+│  Diseñador: [María G. ▼]       │
+│  (dropdown con usuarios diseñadores)
 │                                 │
 │  [Guardar]                      │
 └────┬────────────────────────────┘
      │ 3. Guardar
      ▼
 ┌─────────────────────────────────┐
-│  Producto asignado exitosamente │
+│  Producto y flujos asignados    │
 │  Email enviado a María          │
 └─────────────────────────────────┘
 ```
 
-### 5.2 Responsable Gestiona Su Producto
+### 5.2 Diseñador Gestiona Sus Productos
 
 ```
 ┌──────────┐
 │  María   │
-│(Responsable)
+│(Diseñador)│
 └────┬─────┘
      │
      │ 1. Login al sistema
@@ -198,7 +199,9 @@ VALUES (1, 5, TRUE, TRUE);
 ┌─────────────────────────────────┐
 │  Mis Productos                  │
 │  ┌───────────────────┐          │
-│  │ E-commerce Web    │          │
+│  │ Crédito Vehículo  │          │
+│  │ • Colocación      │          │
+│  │ • Legalización    │          │
 │  │ [Ver Dashboard]   │          │
 │  │ [Registrar Valor] │          │
 │  └───────────────────┘          │
@@ -208,10 +211,10 @@ VALUES (1, 5, TRUE, TRUE);
 ┌─────────────────────────────────┐
 │  Registrar Valores - Marzo 2025 │
 │                                 │
-│  Producto: E-commerce (fijo)    │
-│  Flujo: [Conversión ▼]         │
-│  Métrica: [Tasa conv. ▼]       │
-│  Valor: [3.8]                   │
+│  Producto: Crédito Vehículo (fijo)
+│  Flujo: [Colocación ▼]         │
+│  Métrica: [Tasa Aprobación ▼]  │
+│  Valor: [78.5]                  │
 │                                 │
 │  [Guardar]                      │
 └─────────────────────────────────┘
@@ -244,8 +247,8 @@ export const authorizeProductAccess = (action: 'read' | 'write') => {
       return next();
     }
 
-    // Responsable: verificar ownership
-    if (user.rol === 'responsable') {
+    // Diseñador: verificar ownership
+    if (user.rol === 'disenador') {
       const producto = await prisma.producto.findUnique({
         where: { id: Number(productId) }
       });
@@ -257,12 +260,12 @@ export const authorizeProductAccess = (action: 'read' | 'write') => {
         });
       }
 
-      // Verificar si es el responsable
+      // Verificar si es el diseñador asignado
       if (producto.responsable_id !== user.id) {
         if (action === 'write') {
           return res.status(403).json({
             success: false,
-            message: 'No eres responsable de este producto'
+            message: 'No eres el diseñador de este producto'
           });
         }
         // Puede ver (lectura)
@@ -298,8 +301,8 @@ export function usePermissions() {
       return action === 'read';
     }
 
-    // Responsable
-    if (user?.rol === 'responsable') {
+    // Diseñador
+    if (user?.rol === 'disenador') {
       // Puede leer cualquier cosa
       if (action === 'read') {
         return true;
@@ -356,7 +359,7 @@ router.put('/valores/:id', authenticate, authorizeValueEdit, valoresController.u
 // Rutas de admin
 router.get('/usuarios', authenticate, requireRole('admin'), usuariosController.getAll);
 router.post('/usuarios', authenticate, requireRole('admin'), usuariosController.create);
-router.put('/productos/:id/responsable', authenticate, requireRole('admin'), productosController.assignResponsable);
+router.put('/productos/:id/disenador', authenticate, requireRole('admin'), productosController.assignDisenador);
 ```
 
 ### 7.2 Frontend
@@ -397,30 +400,31 @@ export default function MisProductosPage() {
     redirect('/dashboard'); // Viewers no tienen "sus productos"
   }
 
+  // Solo para diseñadores
   return <MisProductosList />;
 }
 ```
 
 ## 8. Notificaciones de Asignación
 
-Cuando se asigna un responsable a un producto:
+Cuando se asigna un diseñador a un producto:
 
 ```typescript
 // Servicio de notificaciones
-async function notifyProductAssignment(producto: Producto, responsable: Usuario, asignadoPor: Usuario) {
+async function notifyProductAssignment(producto: Producto, disenador: Usuario, asignadoPor: Usuario) {
   // Email
   await sendEmail({
-    to: responsable.email,
+    to: disenador.email,
     subject: `Te asignaron el producto: ${producto.nombre}`,
     html: `
       <h2>Nuevo Producto Asignado</h2>
-      <p>Hola ${responsable.nombre},</p>
-      <p>${asignadoPor.nombre} te ha asignado como responsable del producto <strong>${producto.nombre}</strong>.</p>
+      <p>Hola ${disenador.nombre},</p>
+      <p>${asignadoPor.nombre} te ha asignado como diseñador del producto <strong>${producto.nombre}</strong>.</p>
       <p>Ahora puedes:</p>
       <ul>
-        <li>Gestionar flujos y métricas</li>
+        <li>Gestionar flujos y métricas del producto</li>
         <li>Registrar valores mensuales</li>
-        <li>Ver el dashboard</li>
+        <li>Ver dashboard de producto completo y detalle de flujos</li>
       </ul>
       <a href="${process.env.APP_URL}/productos/${producto.id}">Ver Producto</a>
     `
@@ -429,10 +433,10 @@ async function notifyProductAssignment(producto: Producto, responsable: Usuario,
   // Notificación in-app (futuro)
   await prisma.notificacion.create({
     data: {
-      usuario_id: responsable.id,
+      usuario_id: disenador.id,
       tipo: 'producto_asignado',
       titulo: `Producto asignado: ${producto.nombre}`,
-      mensaje: `${asignadoPor.nombre} te asignó como responsable`,
+      mensaje: `${asignadoPor.nombre} te asignó como diseñador`,
       link: `/productos/${producto.id}`,
       leido: false
     }
@@ -490,40 +494,41 @@ await logAudit({
 
 ## 10. Casos de Uso Comunes
 
-### 10.1 Nuevo Responsable se Une al Equipo
+### 10.1 Nuevo Diseñador se Une al Equipo
 
 ```
-1. Admin crea usuario con rol 'responsable'
-2. Admin asigna productos al nuevo responsable
+1. Admin crea usuario con rol 'disenador'
+2. Admin asigna productos y flujos al nuevo diseñador
 3. Sistema envía email de bienvenida con credenciales
-4. Responsable hace login
-5. Ve sus productos asignados
-6. Puede comenzar a registrar métricas
+4. Diseñador hace login
+5. Ve sus productos y flujos asignados
+6. Puede comenzar a registrar métricas mes a mes
 ```
 
-### 10.2 Cambio de Responsable
+### 10.2 Cambio de Diseñador
 
 ```
 1. Admin edita producto
-2. Cambia responsable de María a Carlos
+2. Cambia diseñador de María a Carlos
 3. Sistema:
-   - Envía email a Carlos (nuevo responsable)
+   - Envía email a Carlos (nuevo diseñador)
    - Envía email a María (notificación de cambio)
    - Registra en auditoría
 4. Carlos ahora puede editar, María pasa a modo lectura
 ```
 
-### 10.3 Responsable Registra Métricas Mensuales
+### 10.3 Diseñador Registra Métricas Mensuales
 
 ```
-1. Responsable login
+1. Diseñador login
 2. Va a "Mis Productos"
-3. Selecciona producto
-4. Click "Registrar Valores"
-5. Completa formulario con valores del mes
-6. Sistema valida permisos
-7. Guarda con created_by = responsable_id
-8. Actualiza dashboard automáticamente
+3. Selecciona producto (ej: Crédito Vehículo)
+4. Ve vista completa del producto con sus 2 flujos
+5. Click "Registrar Valores" en flujo Colocación
+6. Completa formulario con valores del mes
+7. Sistema valida permisos y rangos
+8. Guarda con created_by = disenador_id
+9. Actualiza dashboard automáticamente (vista completa + vista detallada)
 ```
 
 ## 11. Mejores Prácticas
@@ -542,27 +547,28 @@ await logAudit({
 - ✅ Ocultar opciones que el usuario no puede usar
 - ✅ Mostrar mensajes claros cuando no hay permisos
 - ✅ Diferenciar visualmente el rol (badge en header)
-- ✅ Vista "Mis Productos" para responsables
+- ✅ Vista "Mis Productos" para diseñadores (con navegación a vista completa y detallada)
 - ✅ Vista "Todos los Productos" para admins y viewers
 
 ### 11.3 Escalabilidad
 
 - ✅ Cachear permisos del usuario en sesión
-- ✅ Índices en campos de permisos (responsable_id, rol)
+- ✅ Índices en campos de permisos (responsable_id que apunta al diseñador, rol)
 - ✅ Queries optimizadas con filtros de permisos
 - ✅ Considerar Row Level Security (RLS) en PostgreSQL
 
 ## 12. Roadmap de Permisos
 
 ### Fase 1 (MVP - Actual)
-- ✅ 3 roles básicos: admin, responsable, viewer
-- ✅ Responsable por producto
+- ✅ 3 roles básicos: admin, disenador, viewer
+- ✅ Diseñador por producto (con acceso a todos sus flujos)
 - ✅ Validación en backend y frontend
 - ✅ Auditoría básica
+- ✅ Visualización en dos niveles (producto completo + flujo detallado)
 
 ### Fase 2 (Futuro)
-- Equipos de múltiples responsables
-- Permisos granulares por flujo
+- Equipos de múltiples diseñadores
+- Permisos granulares por flujo específico
 - Permisos granulares por métrica
 - Aprobación de valores (workflow)
 - Delegación temporal de permisos

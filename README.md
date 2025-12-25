@@ -24,12 +24,12 @@ Este proyecto permite a las organizaciones:
 - Interfaz responsive (mobile, tablet, desktop)
 
 ### Usuarios y Permisos
-- **Sistema de usuarios con 3 roles**: Admin, Responsable, Viewer
-- **Asignación de productos a responsables**: Cada producto tiene un responsable que lo gestiona
-- **"Mis Productos"**: Vista personalizada donde responsables ven solo sus productos asignados
+- **Sistema de usuarios con 3 roles**: Admin, Diseñador, Viewer
+- **Asignación de productos y flujos a diseñadores**: Admin asigna productos a diseñadores para seguimiento
+- **"Mis Productos"**: Vista personalizada donde diseñadores ven solo sus productos asignados
 - **Autenticación segura (JWT)**: Login, refresh tokens, control de sesiones
 - **Auditoría completa**: Registro de quién crea/modifica cada valor mensual
-- **Filtros por responsable**: Buscar productos y métricas por responsable
+- **Filtros por diseñador**: Buscar productos y métricas por diseñador asignado
 - **Permisos granulares**: Control de acceso basado en roles y ownership
 
 ### Catálogo de Métricas y Validaciones
@@ -39,6 +39,14 @@ Este proyecto permite a las organizaciones:
 - **Benchmarks por industria**: Referencias para interpretar valores
 - **Interpretación de valores**: Sistema que indica si el valor es excelente, bueno, o necesita mejora
 - **Sistema extensible**: Fácil agregar nuevas métricas con sus propias reglas
+
+### Visualización en Dos Niveles
+- **Vista de Producto Completo**: Muestra producto con todos sus flujos y métricas principales
+- **Vista de Flujo Detallado**: Drill-down a un flujo específico con todas sus métricas y análisis completo
+- **Seguimiento mensual**: Diseñadores registran valores mes a mes (no diario)
+- **Navegación intuitiva**: Desde lista de productos → vista completa → detalle de flujo
+- **Gráficas complementarias**: Mini-charts en vista completa, gráficas de 12 meses en vista detallada
+- **Insights automáticos**: Análisis de tendencias, comparaciones y recomendaciones
 
 ## Documentación Completa
 
@@ -94,27 +102,27 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
    - Endpoints de exportación BI
    - Ejemplos con cURL
 
-6. **[API_USUARIOS.md](./API_USUARIOS.md)** ⭐ NUEVO
+6. **[API_USUARIOS.md](./API_USUARIOS.md)**
    - API de gestión de usuarios
-   - Asignación de responsables a productos
-   - Endpoint "Mis Productos" para responsables
-   - Filtros por responsable y departamento
+   - Asignación de diseñadores a productos
+   - Endpoint "Mis Productos" para diseñadores
+   - Filtros por diseñador y departamento
    - API de auditoría
    - Estadísticas por usuario
    - Notificaciones
    - Ejemplos completos
 
-7. **[ROLES_Y_PERMISOS.md](./ROLES_Y_PERMISOS.md)** ⭐ NUEVO
-   - Sistema de roles (Admin, Responsable, Viewer)
+7. **[ROLES_Y_PERMISOS.md](./ROLES_Y_PERMISOS.md)**
+   - Sistema de roles (Admin, Diseñador, Viewer)
    - Matriz completa de permisos
-   - Flujos de asignación de productos
+   - Flujos de asignación de productos y flujos
    - Validaciones de seguridad (backend y frontend)
    - Ejemplos de código de autorización
    - Sistema de notificaciones
    - Auditoría de acciones
    - Mejores prácticas de seguridad
 
-8. **[METRICAS_CATALOGO.md](./METRICAS_CATALOGO.md)** ⭐ NUEVO
+8. **[METRICAS_CATALOGO.md](./METRICAS_CATALOGO.md)**
    - Catálogo completo de métricas predefinidas
    - Validaciones por tipo de métrica (rangos, decimales)
    - Ayuda contextual para cada métrica (descripción, fórmula, ejemplos)
@@ -124,7 +132,17 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
    - Sistema de tooltips y validación en tiempo real
    - Tabla de catálogo en base de datos
 
-9. **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)**
+9. **[VISUALIZACIONES.md](./VISUALIZACIONES.md)** ⭐ NUEVO
+   - Sistema de visualización en dos niveles
+   - Vista de Producto Completo (todos los flujos con métricas principales)
+   - Vista de Flujo Detallado (un flujo con todas sus métricas)
+   - Mockups completos con ejemplos de Crédito de Vehículo
+   - Navegación entre vistas
+   - Permisos de visualización (Admin vs Diseñador)
+   - Formularios de registro mensual
+   - Exportación de datos
+
+10. **[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)**
    - Plan de implementación detallado
    - 10 fases con tareas específicas
    - Cronograma estimado (45 días)
@@ -162,42 +180,41 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
 ## Estructura de Métricas
 
 ```
-Producto (ej: E-commerce Web)
-├── Flujo 1: Adquisición
-│   ├── Métrica Negocio: Costo por Adquisición
-│   ├── Métrica Experiencia: Tasa de rebote
-│   └── Métrica Producto: Nuevos usuarios
+Producto (ej: Crédito de Vehículo)
+├── Flujo 1: Colocación
+│   ├── Solicitudes Recibidas (número)
+│   ├── Tasa de Aprobación (porcentaje)
+│   ├── Ticket Promedio (dinero)
+│   ├── Tiempo de Evaluación (tiempo)
+│   └── CSAT Proceso (score 0-100)
 │
-├── Flujo 2: Activación
-│   ├── Métrica Negocio: Tasa de activación
-│   └── Métrica Experiencia: Tiempo de primer valor
-│
-├── Flujo 3: Conversión
-│   ├── Métrica Negocio: Tasa de conversión
-│   ├── Métrica Negocio: Ticket promedio
-│   └── Métrica Producto: Conversión por canal
-│
-└── Flujo 4: Retención
-    ├── Métrica Negocio: Churn rate
-    ├── Métrica Experiencia: NPS
-    └── Métrica Producto: Usuarios activos mensuales
+└── Flujo 2: Legalización
+    ├── Expedientes Procesados (número)
+    ├── Tiempo de Legalización (tiempo)
+    ├── Tasa de Éxito (porcentaje)
+    ├── Documentos Faltantes (número)
+    └── CSAT Documentación (score 0-100)
+
+Navegación:
+Mis Productos → Vista Producto Completo → Vista Flujo Detallado
 ```
 
-## Sistema de Usuarios y Responsables
+## Sistema de Usuarios y Diseñadores
 
 ### Roles del Sistema
 
 **Admin (Administrador)**:
 - Gestiona todos los productos y usuarios
-- Asigna responsables a productos
+- Asigna diseñadores a productos y flujos
 - Configura métricas y tipos
 - Acceso total al sistema
+- Ve todos los productos
 
-**Responsable (Product Owner/Manager)**:
-- Gestiona SUS productos asignados
+**Diseñador**:
+- Gestiona SUS productos y flujos asignados
 - Crea/edita flujos y métricas de sus productos
-- Registra valores mensuales
-- Ve dashboard de sus productos
+- Registra valores mensuales (mes a mes, no diario)
+- Ve vista completa de producto y vista detallada de flujos
 - Puede ver otros productos en modo lectura
 
 **Viewer (Observador)**:
@@ -208,27 +225,35 @@ Producto (ej: E-commerce Web)
 ### Flujo de Trabajo
 
 ```
-1. Admin crea usuario "María" como Responsable
-2. Admin asigna producto "E-commerce Web" a María
+1. Admin crea usuario "María" como Diseñador
+2. Admin asigna producto "Crédito de Vehículo" (con flujos Colocación y Legalización) a María
 3. María recibe notificación por email
 4. María hace login y ve "Mis Productos"
-5. María puede:
-   - Ver dashboard de E-commerce Web
-   - Crear/editar flujos y métricas
-   - Registrar valores mensuales
-   - Exportar datos de su producto
-6. María NO puede:
-   - Editar productos de otros responsables
+5. María selecciona "Crédito de Vehículo"
+6. María ve Vista de Producto Completo:
+   - Flujo Colocación con sus 5 métricas principales
+   - Flujo Legalización con sus 5 métricas principales
+   - Mini-gráficas de últimos 6 meses
+7. María hace click en "Ver Detalle" del flujo Colocación
+8. María ve Vista de Flujo Detallado:
+   - Todas las métricas del flujo
+   - Gráficas de 12 meses por métrica
+   - Análisis y comparaciones
+9. María registra valores del mes de Marzo 2025
+10. Dashboard se actualiza automáticamente
+
+María NO puede:
+   - Editar productos de otros diseñadores
    - Crear nuevos productos (solo Admin)
    - Gestionar usuarios
 ```
 
 ### Filtros y Búsquedas
 
-- Filtrar productos por responsable
-- Filtrar por departamento del responsable
+- Filtrar productos por diseñador
+- Filtrar por departamento del diseñador
 - Ver "Mis Productos" (solo tus productos asignados)
-- Búsqueda global por nombre, código, responsable
+- Búsqueda global por nombre, código, diseñador
 
 ## Tipos de Métricas
 
@@ -364,12 +389,12 @@ npm run dev
 - ✅ API REST completa
 
 ### Fase 2: Mejoras (Futuro)
-- Alertas automáticas
-- Predicciones con ML
+- Alertas automáticas cuando métricas están fuera de rango
+- Predicciones con ML basadas en tendencias
 - Integración directa con fuentes de datos
-- Roles y permisos granulares
-- Webhooks
-- Auditoría completa
+- Permisos granulares por flujo específico
+- Webhooks para notificaciones
+- Dashboard de auditoría avanzado
 
 ### Fase 3: Avanzado (Futuro)
 - Analytics avanzado
