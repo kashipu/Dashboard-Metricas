@@ -186,15 +186,43 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
    - Criterios de aceptación
    - Checklist de inicio
 
+11. **[SUPABASE_SELFHOSTED.md](./SUPABASE_SELFHOSTED.md)** ⭐ NUEVO
+   - Alternativa de backend con Supabase self-hosted
+   - Instalación y configuración con Docker Compose en VPS
+   - Arquitectura con PostgreSQL + PostgREST + GoTrue + Realtime
+   - Migración de schema SQL existente
+   - Frontend con @supabase/supabase-js
+   - Edge Functions (Deno) para Excel export y Chat IA
+   - Row Level Security (RLS) para permisos
+   - Comparación Supabase vs Express + Prisma
+   - Arquitectura híbrida recomendada
+   - Acceso a Supabase Studio (interfaz web)
+
+12. **[EXAMPLE_DATA.md](./EXAMPLE_DATA.md)**
+   - Datos de ejemplo completos
+   - 3 productos de ejemplo
+   - Múltiples flujos con métricas
+   - Valores mensuales de 6 meses
+   - Scripts SQL para insertar datos
+
 ## Stack Tecnológico
 
-### Backend
+### Backend (Opción 1: Node.js + Express)
 - **Node.js** 20+ con TypeScript
 - **Express.js** - Framework web
 - **Prisma** - ORM
 - **PostgreSQL** 15+ - Base de datos
 - **Zod** - Validación
 - **JWT** - Autenticación
+
+### Backend (Opción 2: Supabase Self-Hosted) ⭐ NUEVO
+- **Supabase** - Backend-as-a-Service open source
+- **PostgreSQL** 15+ - Base de datos (incluida)
+- **PostgREST** - API REST automática
+- **GoTrue** - Autenticación (incluida)
+- **Realtime** - WebSockets para actualizaciones en vivo
+- **Edge Functions** - Runtime Deno para lógica custom
+- **Supabase Studio** - Interfaz web de administración
 
 ### Frontend
 - **Next.js** 14+ (App Router)
