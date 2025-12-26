@@ -205,6 +205,45 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
    - Valores mensuales de 6 meses
    - Scripts SQL para insertar datos
 
+---
+
+## 🚀 Guías de Desarrollo e Implementación
+
+13. **[SETUP_DESARROLLO.md](./SETUP_DESARROLLO.md)** ⭐ NUEVO
+   - **Guía completa de configuración del entorno de desarrollo**
+   - Requisitos previos (Node.js, PostgreSQL, Git)
+   - Instalación paso a paso de todas las herramientas
+   - Configuración de la base de datos local
+   - Setup del backend (dependencias, .env, Prisma)
+   - Setup del frontend (dependencias, .env.local, TailwindCSS)
+   - Scripts para ejecutar el proyecto en modo desarrollo
+   - Verificación de la instalación (checklist completo)
+   - Herramientas recomendadas (VSCode, extensiones, CLI tools)
+   - Troubleshooting de problemas comunes
+   - **Total**: 13 secciones con guía paso a paso
+
+14. **[EQUIPO_Y_ROLES.md](./EQUIPO_Y_ROLES.md)** ⭐ NUEVO
+   - **Documentación completa de roles y agentes necesarios**
+   - Descripción detallada de cada rol técnico:
+     - Tech Lead / Arquitecto
+     - Backend Developer
+     - Frontend Developer
+     - DevOps Engineer
+     - QA Engineer
+   - Roles de gestión: Product Owner, UI/UX Designer
+   - Estructura del equipo por fase del proyecto
+   - Matriz de responsabilidades (RACI)
+   - Habilidades técnicas y blandas requeridas
+   - Herramientas específicas por rol
+   - Ceremonias Agile/Scrum recomendadas
+   - Equipos alternativos (mínimo, solo, enterprise)
+   - Presupuesto estimado por configuración
+   - Cuándo contratar freelancers vs empleados
+   - Checklist de reclutamiento
+   - **Total**: 14 secciones con guía completa de equipo
+
+---
+
 ## Stack Tecnológico
 
 ### Backend (Opción 1: Node.js + Express)
