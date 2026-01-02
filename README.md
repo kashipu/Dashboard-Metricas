@@ -97,6 +97,37 @@ Este repositorio contiene documentación exhaustiva de arquitectura y plan de im
      - Backup remoto (S3/Backblaze)
      - Políticas de retención
 
+2.1. **[DATABASE_OPTIMIZADO.md](./DATABASE_OPTIMIZADO.md)** ⭐⭐ NUEVO
+   - **Modelo de datos optimizado para recolección escalable**
+   - **11 nuevas tablas propuestas** para mejorar la recolección:
+     - `direcciones` y `tribus` (normalización organizacional)
+     - `etiquetas` y `producto_etiquetas` (categorización flexible)
+     - `recolecciones` (tracking completo de cada ingreso de datos)
+     - `metas` (objetivos temporales diferentes a targets)
+     - `alertas` (notificaciones automáticas cuando métricas salen de rango)
+     - `notificaciones` (sistema de notificaciones in-app)
+     - `comentarios` (comentarios en productos/flujos/métricas)
+     - `audit_logs` (log completo de todas las operaciones)
+     - `integraciones` (config de Looker, Power BI, APIs)
+     - `cache_agregaciones` (pre-cálculos para dashboards rápidos)
+   - **Campos adicionales** en tablas existentes para mejor tracking
+   - **Índices optimizados**: compuestos, GIN, parciales
+   - **Vistas materializadas**: Dashboard de producto, Métricas con tendencia
+   - **Comparación completa de bases de datos para escalabilidad**:
+     - PostgreSQL 15+ (recomendado MVP)
+     - TimescaleDB (series temporales, 10-100x más rápido)
+     - ClickHouse (analytics masivo, billones de filas)
+     - MongoDB (NoSQL, no recomendado para este caso)
+     - Supabase (PostgreSQL + BaaS)
+     - CockroachDB (distribuido global)
+   - **Recomendación según escala**:
+     - MVP-100 productos: PostgreSQL ($40/mes)
+     - 100-500 productos: TimescaleDB ($300/mes)
+     - 500-5K productos: PostgreSQL + ClickHouse ($1,500/mes)
+     - Enterprise global: Arquitectura híbrida ($10,000+/mes)
+   - **Arquitectura híbrida avanzada** con diagramas completos
+   - Todo el código SQL listo para copiar y pegar
+
 3. **[BACKEND.md](./BACKEND.md)**
    - Arquitectura del backend
    - Estructura del proyecto
